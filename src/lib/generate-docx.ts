@@ -3,13 +3,8 @@ import {
   Packer,
   Paragraph,
   TextRun,
-  HeadingLevel,
   AlignmentType,
   BorderStyle,
-  Table,
-  TableRow,
-  TableCell,
-  WidthType,
 } from "docx";
 import { saveAs } from "file-saver";
 
