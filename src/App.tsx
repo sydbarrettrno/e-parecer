@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import NovoProcesso from "./pages/NovoProcesso";
 import RevisaoParecer from "./pages/RevisaoParecer";
+import ValidacaoParecer from "./pages/ValidacaoParecer";
 import ResultadoFinal from "./pages/ResultadoFinal";
 import NotFound from "./pages/NotFound";
 
@@ -21,6 +22,7 @@ const App = () => (
           <Route path="/" element={<Dashboard />} />
           <Route path="/novo" element={<NovoProcesso />} />
           <Route path="/revisao/:id" element={<RevisaoParecer />} />
+          <Route path="/validacao/:id" element={<ValidacaoParecer />} />
           <Route path="/resultado/:id" element={<ResultadoFinal />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

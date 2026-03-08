@@ -294,10 +294,10 @@ const RevisaoParecer = () => {
       <div className="flex justify-end">
         <Button
           size="lg"
-          onClick={() => navigate(`/resultado/${id}`)}
+          onClick={() => navigate(`/validacao/${id}`)}
           disabled={!dadosExtraidos || dadosExtraidos.length === 0}
         >
-          Gerar Parecer Técnico
+          Validar e Montar Parecer
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
