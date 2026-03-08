@@ -18,3 +18,8 @@ export async function insertParecer(data: {
   const { error } = await supabase.from("pareceres").insert(data);
   if (error) throw error;
 }
+
+export async function deleteParecer(parecerId: string) {
+  const { error } = await supabase.from("pareceres").delete().eq("id", parecerId);
+  if (error) throw error;
+}

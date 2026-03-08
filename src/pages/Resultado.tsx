@@ -4,7 +4,18 @@ import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Download, FileText, Loader2, Plus } from "lucide-react";
+import { Download, FileText, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { generateParecerDocx } from "@/services/docxGenerator";
@@ -12,7 +23,7 @@ import { buildParecerFromRawData } from "@/services/parecerBuilder";
 import { fetchProcesso, updateProcessoStatus } from "@/database/processos";
 import { fetchArquivos } from "@/database/arquivos";
 import { fetchDadosExtraidos } from "@/database/dados-extraidos";
-import { fetchPareceres, insertParecer } from "@/database/pareceres";
+import { fetchPareceres, insertParecer, deleteParecer } from "@/database/pareceres";
 
 const ResultadoFinal = () => {
   const { id } = useParams<{ id: string }>();
@@ -68,6 +79,19 @@ const ResultadoFinal = () => {
     },
     onError: (err) => {
       toast.error(`Erro ao gerar parecer: ${err.message}`);
+    },
+  });
+
+  const excluirParecer = useMutation({
+    mutationFn: async (parecerId: string) => {
+      await deleteParecer(parecerId);
+    },
+    onSuccess: () => {
+      toast.success("Parecer excluído com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["pareceres", id] });
+    },
+    onError: (err) => {
+      toast.error(`Erro ao excluir parecer: ${err.message}`);
     },
   });
 
@@ -145,10 +169,36 @@ const ResultadoFinal = () => {
                     </p>
                   </div>
                 </div>
-                <Button variant="outline" onClick={() => handleDownload(parecer)}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Baixar DOCX
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => handleDownload(parecer)}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Baixar DOCX
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="icon" className="text-destructive hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir parecer V{String(parecer.versao).padStart(2, "0")}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta ação não pode ser desfeita. O parecer será removido permanentemente.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => excluirParecer.mutate(parecer.id)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Excluir
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </CardContent>
             </Card>
           ))}
