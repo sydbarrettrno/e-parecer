@@ -14,7 +14,171 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      arquivos: {
+        Row: {
+          categoria: Database["public"]["Enums"]["categoria_documento"] | null
+          created_at: string
+          extensao: string
+          hash: string | null
+          id: string
+          nome_original: string
+          processo_id: string
+          storage_path: string | null
+        }
+        Insert: {
+          categoria?: Database["public"]["Enums"]["categoria_documento"] | null
+          created_at?: string
+          extensao: string
+          hash?: string | null
+          id?: string
+          nome_original: string
+          processo_id: string
+          storage_path?: string | null
+        }
+        Update: {
+          categoria?: Database["public"]["Enums"]["categoria_documento"] | null
+          created_at?: string
+          extensao?: string
+          hash?: string | null
+          id?: string
+          nome_original?: string
+          processo_id?: string
+          storage_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "arquivos_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dados_extraidos: {
+        Row: {
+          campo: string
+          confianca: string | null
+          created_at: string
+          editado: boolean | null
+          id: string
+          oculto: boolean | null
+          origem_documento: string | null
+          processo_id: string
+          trecho: string | null
+          valor: string
+        }
+        Insert: {
+          campo: string
+          confianca?: string | null
+          created_at?: string
+          editado?: boolean | null
+          id?: string
+          oculto?: boolean | null
+          origem_documento?: string | null
+          processo_id: string
+          trecho?: string | null
+          valor: string
+        }
+        Update: {
+          campo?: string
+          confianca?: string | null
+          created_at?: string
+          editado?: boolean | null
+          id?: string
+          oculto?: boolean | null
+          origem_documento?: string | null
+          processo_id?: string
+          trecho?: string | null
+          valor?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dados_extraidos_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pareceres: {
+        Row: {
+          conteudo_json: Json | null
+          created_at: string
+          data_execucao: string
+          hash_documentos: string | null
+          id: string
+          processo_id: string
+          storage_path: string | null
+          versao: number
+        }
+        Insert: {
+          conteudo_json?: Json | null
+          created_at?: string
+          data_execucao?: string
+          hash_documentos?: string | null
+          id?: string
+          processo_id: string
+          storage_path?: string | null
+          versao?: number
+        }
+        Update: {
+          conteudo_json?: Json | null
+          created_at?: string
+          data_execucao?: string
+          hash_documentos?: string | null
+          id?: string
+          processo_id?: string
+          storage_path?: string | null
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pareceres_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      processos: {
+        Row: {
+          created_at: string
+          data_upload: string
+          id: string
+          nome_processo: string
+          numero_processo: string
+          orgao: string
+          secretaria: string
+          status: Database["public"]["Enums"]["status_processo"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data_upload?: string
+          id?: string
+          nome_processo: string
+          numero_processo: string
+          orgao: string
+          secretaria: string
+          status?: Database["public"]["Enums"]["status_processo"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data_upload?: string
+          id?: string
+          nome_processo?: string
+          numero_processo?: string
+          orgao?: string
+          secretaria?: string
+          status?: Database["public"]["Enums"]["status_processo"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +187,19 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      categoria_documento:
+        | "ADMINISTRATIVO"
+        | "MEMORIAL_OU_TR"
+        | "ORCAMENTO"
+        | "CRONOGRAMA"
+        | "RESPONSABILIDADE_TECNICA"
+        | "OUTROS"
+      status_processo:
+        | "cadastrado"
+        | "analisando"
+        | "revisao"
+        | "concluido"
+        | "erro"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +326,22 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      categoria_documento: [
+        "ADMINISTRATIVO",
+        "MEMORIAL_OU_TR",
+        "ORCAMENTO",
+        "CRONOGRAMA",
+        "RESPONSABILIDADE_TECNICA",
+        "OUTROS",
+      ],
+      status_processo: [
+        "cadastrado",
+        "analisando",
+        "revisao",
+        "concluido",
+        "erro",
+      ],
+    },
   },
 } as const
