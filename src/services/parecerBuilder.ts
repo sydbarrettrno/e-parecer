@@ -57,11 +57,13 @@ export function buildParecerConteudo(
         origem: s.origem,
         confianca: s.confianca,
       })),
-    inconsistencias: getSecao("inconsistencias") || "Não foram identificadas inconsistências graves nos documentos analisados.",
-    complementacao: getSecao("complementacao") || null,
-    sintese: getSecao("conclusao") || "—",
     conclusao: getSecao("conclusao") || "—",
-    responsavel_tecnico: getSecao("responsavel_tecnico_final") || NOT_FOUND,
+    fechamento: {
+      local_data: getSecao("fechamento_local_data") || `${processo.orgao}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}.`,
+      responsavel: getSecao("fechamento_responsavel") || NOT_FOUND,
+      cargo: getSecao("fechamento_cargo") || "",
+      registro_profissional: getSecao("fechamento_registro") || "",
+    },
   };
 }
 
@@ -103,9 +105,12 @@ export function buildParecerFromRawData(
       origem: d.origem_documento,
       confianca: d.confianca,
     })),
-    inconsistencias: "Não foram identificadas inconsistências graves nos documentos analisados.",
-    complementacao: null,
-    sintese: `Parecer técnico elaborado com base na análise de ${arquivos.length} documento(s) integrante(s) do processo administrativo nº ${processo.numero_processo}.`,
-    responsavel_tecnico: dadosMap["responsavel_tecnico"] || NOT_FOUND,
+    conclusao: `Parecer técnico elaborado com base na análise de ${arquivos.length} documento(s) integrante(s) do processo administrativo nº ${processo.numero_processo}.\n\nÉ este o parecer.`,
+    fechamento: {
+      local_data: `${processo.orgao}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}.`,
+      responsavel: dadosMap["responsavel_tecnico"] || NOT_FOUND,
+      cargo: "",
+      registro_profissional: "",
+    },
   };
 }
