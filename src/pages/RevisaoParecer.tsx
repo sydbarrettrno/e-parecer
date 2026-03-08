@@ -126,7 +126,7 @@ const RevisaoParecer = () => {
                   <span className="truncate">{arq.nome_original}</span>
                   {arq.categoria && (
                     <Badge variant="outline" className="ml-auto shrink-0 text-xs">
-                      {arq.categoria}
+                      {categoriaLabel(arq.categoria)}
                     </Badge>
                   )}
                 </div>
