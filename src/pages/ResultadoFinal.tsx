@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Download, FileText, Loader2, Plus, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { generateParecerDocx } from "@/lib/generate-docx";
+import { generateParecerDocx } from "@/services/docxGenerator";
 
 const ResultadoFinal = () => {
   const { id } = useParams<{ id: string }>();

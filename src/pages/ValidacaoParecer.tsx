@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { generateParecerDocx } from "@/lib/generate-docx";
+import { generateParecerDocx } from "@/services/docxGenerator";
 import {
   Pencil, Check, X, Eye, EyeOff, FileText, Loader2, ArrowLeft, Download, Plus,
 } from "lucide-react";
