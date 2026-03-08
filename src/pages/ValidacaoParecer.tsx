@@ -253,7 +253,7 @@ const ValidacaoParecer = () => {
 
       const conteudo = {
         identificacao_parecer: {
-          numero: `PT-${processo.numero_processo}-V${String(nextVersion).padStart(2, "0")}`,
+          numero: `Nº ${String(nextVersion).padStart(3, "0")}/${new Date().getFullYear()} – ${processo.secretaria}`,
           data: format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR }),
         },
         identificacao_processo: {
@@ -261,24 +261,26 @@ const ValidacaoParecer = () => {
           numero: processo.numero_processo,
           orgao: processo.orgao,
           secretaria: processo.secretaria,
-          texto_validado: getSecao("identificacao_processo"),
         },
         objeto: getSecao("objeto") || "Não foi identificada informação correspondente nos documentos analisados.",
         documentos_analisados: arquivos.map((a) => ({
           nome: a.nome_original,
           categoria: a.categoria || "OUTROS",
         })),
+        assunto: getSecao("assunto") || null,
+        consideracoes_iniciais: getSecao("consideracoes_iniciais") || null,
         analise_tecnica: visibleSections
-          .filter((s) => s.key.startsWith("valor_estimado") || s.key.startsWith("responsavel_tecnico_dado") || s.key.startsWith("extra_"))
+          .filter((s) => s.key.startsWith("valor_estimado") || s.key.startsWith("extra_") || s.key === "projetos_documentos" || s.key === "determinacao_custos" || s.key === "oneracao_desoneracao" || s.key === "bdi" || s.key === "cronograma")
           .map((s) => ({
-            campo: s.titulo.replace(/^5\.\d?\s*/, "").replace(/^5\.X\s*/, ""),
+            campo: s.key,
             valor: s.texto,
             origem: s.origem,
             confianca: s.confianca,
           })),
         inconsistencias: getSecao("inconsistencias") || "Não foram identificadas inconsistências graves nos documentos analisados.",
         complementacao: getSecao("complementacao") || null,
-        sintese: getSecao("sintese") || "—",
+        sintese: getSecao("conclusao") || "—",
+        conclusao: getSecao("conclusao") || "—",
         responsavel_tecnico: getSecao("responsavel_tecnico_final") || "Não foi identificada informação correspondente nos documentos analisados.",
       };
 
