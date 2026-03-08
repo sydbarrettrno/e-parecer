@@ -143,6 +143,10 @@ const Dashboard = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => startEditTitle(processo.id, processo.nome_processo)}>
+                            <Pencil className="mr-2 h-3.5 w-3.5" />
+                            Editar Título
+                          </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <Link to={`/revisao/${processo.id}`} className="flex items-center gap-2">
                               <Pencil className="h-3.5 w-3.5" />
