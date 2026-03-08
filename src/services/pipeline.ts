@@ -68,12 +68,11 @@ export async function executePipelineUpload(
     await uploadToStorage("processos", storagePath, ef.data);
 
     const categoria = classifyDocument(ef.name);
-    await supabase.from("arquivos").insert({
+    await insertArquivo({
       processo_id: processo.id,
       nome_original: ef.name,
       extensao: ef.extension,
       storage_path: storagePath,
-      categoria,
     });
   }
 
