@@ -113,14 +113,8 @@ const ValidacaoParecer = () => {
 
     const built: SecaoParecer[] = [
       {
-        key: "identificacao_processo",
-        titulo: "2. IDENTIFICAÇÃO DO PROCESSO",
-        texto: `Nome: ${processo.nome_processo}\nNúmero do Processo: ${processo.numero_processo}\nÓrgão: ${processo.orgao}\nSecretaria: ${processo.secretaria}`,
-        oculto: false,
-      },
-      {
         key: "objeto",
-        titulo: "3. OBJETO",
+        titulo: "1. IDENTIFICAÇÃO E OBJETO",
         texto: dadosMap["objeto_contratacao"]?.valor || "Não foi identificada informação correspondente nos documentos analisados.",
         origem: dadosMap["objeto_contratacao"]?.origem,
         confianca: dadosMap["objeto_contratacao"]?.confianca,
@@ -128,58 +122,92 @@ const ValidacaoParecer = () => {
       },
       {
         key: "documentos_analisados",
-        titulo: "4. DOCUMENTOS ANALISADOS",
+        titulo: "2. DOCUMENTOS ANALISADOS",
         texto: docsList || "Nenhum documento analisado.",
         oculto: false,
       },
       {
+        key: "assunto",
+        titulo: "3. ASSUNTO",
+        texto: `Elaboração de Parecer Técnico para o material apresentado, visando instruir procedimento licitatório para execução de obra pública, conforme especificações constantes nas peças técnicas que integram o processo nº ${processo.numero_processo}.`,
+        oculto: false,
+      },
+      {
+        key: "consideracoes_iniciais",
+        titulo: "4. CONSIDERAÇÕES INICIAIS",
+        texto: "Este parecer tem por objetivo verificar se o conjunto documental apresentado possui completude, clareza e consistência documental para subsidiar a instrução do procedimento licitatório, à luz da Lei nº 14.133/2021.",
+        oculto: false,
+      },
+      {
+        key: "projetos_documentos",
+        titulo: "5.1 PROJETOS E DEMAIS DOCUMENTOS TÉCNICOS",
+        texto: "Não foi identificada informação correspondente nos documentos analisados.",
+        oculto: false,
+      },
+      {
         key: "valor_estimado",
-        titulo: "5.1 VALOR ESTIMADO",
+        titulo: "5.2 VALOR GLOBAL ORÇADO",
         texto: dadosMap["valor_estimado"]?.valor || "Não foi identificada informação correspondente nos documentos analisados.",
         origem: dadosMap["valor_estimado"]?.origem,
         confianca: dadosMap["valor_estimado"]?.confianca,
         oculto: false,
       },
       {
-        key: "responsavel_tecnico_dado",
-        titulo: "5.2 RESPONSÁVEL TÉCNICO",
-        texto: dadosMap["responsavel_tecnico"]?.valor || "Não foi identificada informação correspondente nos documentos analisados.",
-        origem: dadosMap["responsavel_tecnico"]?.origem,
-        confianca: dadosMap["responsavel_tecnico"]?.confianca,
+        key: "determinacao_custos",
+        titulo: "5.3 DETERMINAÇÃO DOS CUSTOS",
+        texto: "Não foi identificada informação correspondente nos documentos analisados.",
         oculto: false,
       },
-      // Other extracted fields
+      {
+        key: "oneracao_desoneracao",
+        titulo: "5.4 ONERAÇÃO / DESONERAÇÃO",
+        texto: "Não foi identificada informação correspondente nos documentos analisados.",
+        oculto: false,
+      },
+      {
+        key: "bdi",
+        titulo: "5.5 BDI",
+        texto: "Não foi identificada informação correspondente nos documentos analisados.",
+        oculto: false,
+      },
+      {
+        key: "cronograma",
+        titulo: "5.6 CRONOGRAMA FÍSICO-FINANCEIRO E MEMORIAIS",
+        texto: "Não foi identificada informação correspondente nos documentos analisados.",
+        oculto: false,
+      },
+      // Other extracted fields as additional analysis sections
       ...dadosExtraidos
         .filter((d) => !["objeto_contratacao", "valor_estimado", "responsavel_tecnico", "numero_processo", "orgao_responsavel", "secretaria_responsavel"].includes(d.campo))
-        .map((d) => ({
+        .map((d, i) => ({
           key: `extra_${d.id}`,
-          titulo: `5.X ${campoLabels[d.campo] || d.campo}`,
+          titulo: `5.${7 + i} ${campoLabels[d.campo] || d.campo.toUpperCase()}`,
           texto: d.valor,
           origem: d.origem_documento ?? undefined,
           confianca: d.confianca ?? undefined,
           oculto: false,
         })),
       {
+        key: "conclusao",
+        titulo: "6. CONCLUSÃO – PARECER TÉCNICO",
+        texto: `Parecer técnico elaborado com base na análise de ${arquivos.length} documento(s) integrante(s) do processo administrativo nº ${processo.numero_processo}.`,
+        oculto: false,
+      },
+      {
         key: "inconsistencias",
-        titulo: "6. REGISTRO DE INCONSISTÊNCIAS GRAVES",
+        titulo: "REGISTRO DE INCONSISTÊNCIAS GRAVES",
         texto: "Não foram identificadas inconsistências graves nos documentos analisados.",
         oculto: false,
       },
       {
         key: "complementacao",
-        titulo: "7. SOLICITAÇÃO DE COMPLEMENTAÇÃO DOCUMENTAL",
+        titulo: "SOLICITAÇÃO DE COMPLEMENTAÇÃO DOCUMENTAL",
         texto: "Não há solicitação de complementação documental.",
         oculto: false,
       },
       {
-        key: "sintese",
-        titulo: "8. SÍNTESE DA ANÁLISE",
-        texto: `Parecer técnico elaborado com base na análise de ${arquivos.length} documento(s) integrante(s) do processo administrativo nº ${processo.numero_processo}.`,
-        oculto: false,
-      },
-      {
         key: "responsavel_tecnico_final",
-        titulo: "9. IDENTIFICAÇÃO DO RESPONSÁVEL TÉCNICO",
+        titulo: "RESPONSÁVEL TÉCNICO",
         texto: dadosMap["responsavel_tecnico"]?.valor || "Não foi identificada informação correspondente nos documentos analisados.",
         oculto: false,
       },
