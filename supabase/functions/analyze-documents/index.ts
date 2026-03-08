@@ -9,7 +9,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const AI_GATEWAY_URL = `${SUPABASE_URL}/functions/v1/ai-proxy`;
+const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
   ADMINISTRATIVO: ["oficio", "despacho", "portaria", "memorando", "decreto", "edital", "ata", "certidao", "declaracao"],
@@ -78,7 +78,7 @@ Analise as informações do processo abaixo e extraia os seguintes dados:
 3. orgao_responsavel - Órgão responsável
 4. secretaria_responsavel - Secretaria responsável
 5. valor_estimado - Valor estimado da contratação
-6. responsavel_tecnico - Responsável técnico
+6. responsavel_tecnico - Responsável técnico (nome, registro profissional)
 
 INFORMAÇÕES DO PROCESSO:
 - Nome: ${processo.nome_processo}
@@ -90,26 +90,31 @@ DOCUMENTOS DISPONÍVEIS:
 ${fileNames}
 
 INSTRUÇÕES:
-- Para cada dado, retorne um JSON com os campos: campo, valor, origem_documento, confianca (alta/media/baixa)
-- Se a informação está presente nos dados do processo, use-a com confiança "alta"
-- Se a informação não puder ser determinada, use: "Não foi identificada informação correspondente nos documentos analisados." com confiança "baixa"
+- Para cada dado, retorne um JSON com os campos:
+  - campo: identificador do campo (ex: "objeto_contratacao")
+  - valor: o valor extraído
+  - origem_documento: nome do documento de onde a informação foi extraída
+  - trecho: o trecho exato ou resumido do documento que contém a informação
+  - confianca: nível de confiança ("alta", "media", "baixa")
+- Se a informação está presente nos dados do processo, use-a com confiança "alta" e indique "Cadastro do processo" como origem
+- Para o trecho, cite a parte relevante do documento ou metadado que embasa a informação
+- Se a informação não puder ser determinada, use "Não identificado" como valor, null como trecho, e confiança "baixa"
 - Responda APENAS com um array JSON, sem markdown, sem explicações
 
-Exemplo de resposta:
-[{"campo":"objeto_contratacao","valor":"Reforma do prédio sede","origem_documento":"Termo de Referência","confianca":"alta"}]`;
+Exemplo:
+[{"campo":"objeto_contratacao","valor":"Reforma do prédio sede","origem_documento":"Termo de Referência","trecho":"O presente termo tem por objeto a contratação de empresa para reforma...","confianca":"alta"}]`;
 
-    // Call AI via Supabase AI gateway (Lovable AI)
     let extractedData: any[] = [];
-    
+
     try {
-      const aiResponse = await fetch(`${SUPABASE_URL}/functions/v1/ai-proxy`, {
+      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${SUPABASE_KEY}`,
+          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-3-flash-preview",
           messages: [{ role: "user", content: prompt }],
         }),
       });
@@ -117,39 +122,42 @@ Exemplo de resposta:
       if (aiResponse.ok) {
         const aiResult = await aiResponse.json();
         const content = aiResult.choices?.[0]?.message?.content || "";
-        
-        // Try to parse JSON from the response
+
         const jsonMatch = content.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           extractedData = JSON.parse(jsonMatch[0]);
         }
+      } else {
+        const errText = await aiResponse.text();
+        console.error("AI gateway error:", aiResponse.status, errText);
       }
     } catch (aiErr) {
       console.error("AI analysis error:", aiErr);
     }
 
-    // If AI failed, generate basic extraction from process metadata
+    // Fallback if AI failed
     if (extractedData.length === 0) {
       extractedData = [
-        { campo: "objeto_contratacao", valor: processo.nome_processo, origem_documento: "Cadastro do processo", confianca: "media" },
-        { campo: "numero_processo", valor: processo.numero_processo, origem_documento: "Cadastro do processo", confianca: "alta" },
-        { campo: "orgao_responsavel", valor: processo.orgao, origem_documento: "Cadastro do processo", confianca: "alta" },
-        { campo: "secretaria_responsavel", valor: processo.secretaria, origem_documento: "Cadastro do processo", confianca: "alta" },
-        { campo: "valor_estimado", valor: "Não foi identificada informação correspondente nos documentos analisados.", origem_documento: null, confianca: "baixa" },
-        { campo: "responsavel_tecnico", valor: "Não foi identificada informação correspondente nos documentos analisados.", origem_documento: null, confianca: "baixa" },
+        { campo: "objeto_contratacao", valor: processo.nome_processo, origem_documento: "Cadastro do processo", trecho: `Nome do processo: ${processo.nome_processo}`, confianca: "media" },
+        { campo: "numero_processo", valor: processo.numero_processo, origem_documento: "Cadastro do processo", trecho: `Número: ${processo.numero_processo}`, confianca: "alta" },
+        { campo: "orgao_responsavel", valor: processo.orgao, origem_documento: "Cadastro do processo", trecho: `Órgão: ${processo.orgao}`, confianca: "alta" },
+        { campo: "secretaria_responsavel", valor: processo.secretaria, origem_documento: "Cadastro do processo", trecho: `Secretaria: ${processo.secretaria}`, confianca: "alta" },
+        { campo: "valor_estimado", valor: "Não identificado", origem_documento: null, trecho: null, confianca: "baixa" },
+        { campo: "responsavel_tecnico", valor: "Não identificado", origem_documento: null, trecho: null, confianca: "baixa" },
       ];
     }
 
     // Clear old extracted data
     await supabase.from("dados_extraidos").delete().eq("processo_id", processo_id);
 
-    // Insert extracted data
+    // Insert extracted data with trecho
     for (const item of extractedData) {
       await supabase.from("dados_extraidos").insert({
         processo_id,
         campo: item.campo,
         valor: item.valor,
         origem_documento: item.origem_documento || null,
+        trecho: item.trecho || null,
         confianca: item.confianca || "media",
       });
     }
