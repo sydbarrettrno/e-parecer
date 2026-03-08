@@ -4,7 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, Clock, CheckCircle, AlertCircle, Search } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, FileText, Clock, CheckCircle, AlertCircle, Search, MoreVertical, Pencil, Eye, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -71,19 +77,58 @@ const Dashboard = () => {
                 : `/revisao/${processo.id}`;
 
             return (
-              <Link key={processo.id} to={linkPath}>
-                <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/30">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-base leading-tight">
+              <Card key={processo.id} className="transition-all hover:shadow-md hover:border-primary/30">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <Link to={linkPath} className="flex-1">
+                      <CardTitle className="text-base leading-tight cursor-pointer hover:text-primary">
                         {processo.nome_processo}
                       </CardTitle>
+                    </Link>
+                    <div className="flex items-center gap-2">
                       <span className={`status-badge ${status.class}`}>
                         <StatusIcon className="mr-1 h-3 w-3" />
                         {status.label}
                       </span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem asChild>
+                            <Link to={`/revisao/${processo.id}`} className="flex items-center gap-2">
+                              <Pencil className="h-3.5 w-3.5" />
+                              Editar Dados Extraídos
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link to={`/validacao/${processo.id}`} className="flex items-center gap-2">
+                              <Eye className="h-3.5 w-3.5" />
+                              Validar Parecer
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link to={`/resultado/${processo.id}`} className="flex items-center gap-2">
+                              <FileText className="h-3.5 w-3.5" />
+                              Ver Resultado Final
+                            </Link>
+                          </DropdownMenuItem>
+                          {processo.status === "concluido" && (
+                            <DropdownMenuItem asChild>
+                              <Link to={`/validacao/${processo.id}`} className="flex items-center gap-2">
+                                <RotateCcw className="h-3.5 w-3.5" />
+                                Gerar Nova Versão
+                              </Link>
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                  </CardHeader>
+                  </div>
+                </CardHeader>
+                <Link to={linkPath}>
                   <CardContent>
                     <div className="space-y-1.5 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
@@ -96,8 +141,8 @@ const Dashboard = () => {
                       </div>
                     </div>
                   </CardContent>
-                </Card>
-              </Link>
+                </Link>
+              </Card>
             );
           })}
         </div>
