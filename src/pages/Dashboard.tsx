@@ -42,6 +42,24 @@ const Dashboard = () => {
     },
   });
 
+  const updateTitle = useMutation({
+    mutationFn: async ({ id, nome }: { id: string; nome: string }) => {
+      const { error } = await supabase.from("processos").update({ nome_processo: nome }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Título atualizado!");
+      queryClient.invalidateQueries({ queryKey: ["processos"] });
+      setEditingId(null);
+    },
+    onError: () => toast.error("Erro ao atualizar título"),
+  });
+
+  const startEditTitle = (id: string, currentTitle: string) => {
+    setEditingId(id);
+    setEditTitle(currentTitle);
+  };
+
   return (
     <AppLayout title="Painel de Processos">
       <div className="mb-6 flex items-center justify-between">
