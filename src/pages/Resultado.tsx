@@ -1,14 +1,18 @@
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Download, FileText, Loader2, Plus, RefreshCw } from "lucide-react";
+import { Download, FileText, Loader2, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { generateParecerDocx } from "@/services/docxGenerator";
+import { buildParecerFromRawData } from "@/services/parecerBuilder";
+import { fetchProcesso, updateProcessoStatus } from "@/database/processos";
+import { fetchArquivos } from "@/database/arquivos";
+import { fetchDadosExtraidos } from "@/database/dados-extraidos";
+import { fetchPareceres, insertParecer } from "@/database/pareceres";
 
 const ResultadoFinal = () => {
   const { id } = useParams<{ id: string }>();
@@ -16,53 +20,22 @@ const ResultadoFinal = () => {
 
   const { data: processo } = useQuery({
     queryKey: ["processo", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("processos")
-        .select("*")
-        .eq("id", id!)
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchProcesso(id!),
   });
 
   const { data: dadosExtraidos } = useQuery({
     queryKey: ["dados_extraidos", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("dados_extraidos")
-        .select("*")
-        .eq("processo_id", id!)
-        .eq("oculto", false);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchDadosExtraidos(id!, true),
   });
 
   const { data: arquivos } = useQuery({
     queryKey: ["arquivos", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("arquivos")
-        .select("*")
-        .eq("processo_id", id!);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchArquivos(id!),
   });
 
   const { data: pareceres, isLoading: loadingPareceres } = useQuery({
     queryKey: ["pareceres", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pareceres")
-        .select("*")
-        .eq("processo_id", id!)
-        .order("versao", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchPareceres(id!),
   });
 
   const gerarParecer = useMutation({
@@ -70,49 +43,21 @@ const ResultadoFinal = () => {
       if (!processo || !dadosExtraidos || !arquivos) throw new Error("Dados não carregados");
 
       const nextVersion = (pareceres?.[0]?.versao ?? 0) + 1;
-      const dadosMap: Record<string, string> = {};
-      dadosExtraidos.forEach((d) => {
-        dadosMap[d.campo] = d.valor;
-      });
 
-      const conteudo = {
-        identificacao_parecer: {
-          numero: `PT-${processo.numero_processo}-V${String(nextVersion).padStart(2, "0")}`,
-          data: format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR }),
-        },
-        identificacao_processo: {
-          nome: processo.nome_processo,
-          numero: processo.numero_processo,
-          orgao: processo.orgao,
-          secretaria: processo.secretaria,
-        },
-        objeto: dadosMap["objeto_contratacao"] || "Não foi identificada informação correspondente nos documentos analisados.",
-        documentos_analisados: arquivos.map((a) => ({
-          nome: a.nome_original,
-          categoria: a.categoria || "OUTROS",
-        })),
-        analise_tecnica: dadosExtraidos.map((d) => ({
-          campo: d.campo,
-          valor: d.valor,
-          origem: d.origem_documento,
-          confianca: d.confianca,
-        })),
-        inconsistencias: "Não foram identificadas inconsistências graves nos documentos analisados.",
-        complementacao: null,
-        sintese: `Parecer técnico elaborado com base na análise de ${arquivos.length} documento(s) integrante(s) do processo administrativo nº ${processo.numero_processo}.`,
-        responsavel_tecnico: dadosMap["responsavel_tecnico"] || "Não foi identificada informação correspondente nos documentos analisados.",
-      };
+      const conteudo = buildParecerFromRawData(
+        processo,
+        dadosExtraidos,
+        arquivos,
+        nextVersion
+      );
 
-      // Save to DB
-      const { error } = await supabase.from("pareceres").insert({
+      await insertParecer({
         processo_id: id!,
         versao: nextVersion,
         conteudo_json: conteudo,
       });
-      if (error) throw error;
 
-      // Update process status
-      await supabase.from("processos").update({ status: "concluido" as const }).eq("id", id!);
+      await updateProcessoStatus(id!, "concluido");
 
       return { conteudo, version: nextVersion };
     },

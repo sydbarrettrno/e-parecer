@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,11 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Upload, Loader2, FileArchive } from "lucide-react";
-import JSZip from "jszip";
+import { listZipContents, isValidZip } from "@/services/zipExtractor";
+import { executePipelineUpload } from "@/services/pipeline";
 
-const ACCEPTED_EXTENSIONS = [".pdf", ".docx", ".xlsx", ".odt"];
-
-const NovoProcesso = () => {
+const NovoParecer = () => {
   const navigate = useNavigate();
   const [form, setForm] = useState({
     nome_processo: "",
@@ -27,16 +25,13 @@ const NovoProcesso = () => {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.name.endsWith(".zip")) {
+    if (!isValidZip(file)) {
       toast.error("Apenas arquivos .zip são aceitos");
       return;
     }
     setZipFile(file);
     try {
-      const zip = await JSZip.loadAsync(file);
-      const names = Object.keys(zip.files).filter(
-        (n) => !zip.files[n].dir && ACCEPTED_EXTENSIONS.some((ext) => n.toLowerCase().endsWith(ext))
-      );
+      const names = await listZipContents(file);
       setFileList(names);
     } catch {
       toast.error("Erro ao ler arquivo ZIP");
@@ -46,64 +41,11 @@ const NovoProcesso = () => {
   const mutation = useMutation({
     mutationFn: async () => {
       if (!zipFile) throw new Error("Envie um arquivo ZIP");
-
-      // 1. Create process
-      const { data: processo, error: procError } = await supabase
-        .from("processos")
-        .insert({
-          nome_processo: form.nome_processo,
-          numero_processo: form.numero_processo,
-          orgao: form.orgao,
-          secretaria: form.secretaria,
-          status: "analisando" as const,
-        })
-        .select()
-        .single();
-      if (procError) throw procError;
-
-      // 2. Upload ZIP to storage
-      const zipPath = `${processo.id}/processo.zip`;
-      const { error: uploadError } = await supabase.storage
-        .from("processos")
-        .upload(zipPath, zipFile);
-      if (uploadError) throw uploadError;
-
-      // 3. Extract and upload individual files, register in arquivos table
-      const zip = await JSZip.loadAsync(zipFile);
-      const validFiles = Object.keys(zip.files).filter(
-        (n) => !zip.files[n].dir && ACCEPTED_EXTENSIONS.some((ext) => n.toLowerCase().endsWith(ext))
-      );
-
-      for (const fileName of validFiles) {
-        const fileData = await zip.files[fileName].async("blob");
-        const ext = fileName.substring(fileName.lastIndexOf(".")).toLowerCase();
-        const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const storagePath = `${processo.id}/${safeName}`;
-
-        await supabase.storage.from("processos").upload(storagePath, fileData);
-
-        await supabase.from("arquivos").insert({
-          processo_id: processo.id,
-          nome_original: fileName,
-          extensao: ext,
-          storage_path: storagePath,
-        });
-      }
-
-      // 4. Call analysis edge function
-      const { error: fnError } = await supabase.functions.invoke("analyze-documents", {
-        body: { processo_id: processo.id },
-      });
-      if (fnError) {
-        console.error("Analysis function error:", fnError);
-        // Don't block - user can still review
-      }
-
-      return processo;
+      return executePipelineUpload(form, zipFile);
     },
-    onSuccess: (processo) => {
+    onSuccess: (result) => {
       toast.success("Processo criado! Análise em andamento...");
-      navigate(`/revisao/${processo.id}`);
+      navigate(`/revisao/${result.processoId}`);
     },
     onError: (error) => {
       toast.error(`Erro: ${error.message}`);
@@ -233,4 +175,4 @@ const NovoProcesso = () => {
   );
 };
 
-export default NovoProcesso;
+export default NovoParecer;

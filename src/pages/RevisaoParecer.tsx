@@ -5,22 +5,16 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   FileText, Eye, EyeOff, Pencil, Check, X, Loader2, RefreshCw, ArrowRight,
 } from "lucide-react";
-
-const campoLabels: Record<string, string> = {
-  objeto_contratacao: "Objeto da Contratação",
-  numero_processo: "Número do Processo",
-  orgao_responsavel: "Órgão Responsável",
-  secretaria_responsavel: "Secretaria Responsável",
-  valor_estimado: "Valor Estimado",
-  responsavel_tecnico: "Responsável Técnico",
-};
+import { fetchProcesso, updateProcessoStatus } from "@/database/processos";
+import { fetchArquivos } from "@/database/arquivos";
+import { fetchDadosExtraidos, updateDadoExtraido } from "@/database/dados-extraidos";
+import { campoLabels } from "@/services/objectExtractor";
 
 const confiancaColor: Record<string, string> = {
   alta: "bg-success text-success-foreground",
@@ -37,49 +31,23 @@ const RevisaoParecer = () => {
 
   const { data: processo } = useQuery({
     queryKey: ["processo", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("processos")
-        .select("*")
-        .eq("id", id!)
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchProcesso(id!),
   });
 
   const { data: arquivos } = useQuery({
     queryKey: ["arquivos", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("arquivos")
-        .select("*")
-        .eq("processo_id", id!);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchArquivos(id!),
   });
 
   const { data: dadosExtraidos, isLoading: loadingDados } = useQuery({
     queryKey: ["dados_extraidos", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("dados_extraidos")
-        .select("*")
-        .eq("processo_id", id!);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchDadosExtraidos(id!),
     refetchInterval: processo?.status === "analisando" ? 3000 : false,
   });
 
   const updateDado = useMutation({
     mutationFn: async ({ dadoId, updates }: { dadoId: string; updates: Record<string, unknown> }) => {
-      const { error } = await supabase
-        .from("dados_extraidos")
-        .update(updates)
-        .eq("id", dadoId);
-      if (error) throw error;
+      await updateDadoExtraido(dadoId, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dados_extraidos", id] });
@@ -88,7 +56,7 @@ const RevisaoParecer = () => {
 
   const reanalyze = useMutation({
     mutationFn: async () => {
-      await supabase.from("processos").update({ status: "analisando" as const }).eq("id", id!);
+      await updateProcessoStatus(id!, "analisando");
       const { error } = await supabase.functions.invoke("analyze-documents", {
         body: { processo_id: id },
       });
