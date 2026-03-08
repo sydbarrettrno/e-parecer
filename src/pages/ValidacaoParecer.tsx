@@ -33,6 +33,8 @@ const ValidacaoParecer = () => {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [initialized, setInitialized] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleValue, setTitleValue] = useState("");
 
   const { data: processo } = useQuery({
     queryKey: ["processo", id],
