@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import NovoProcesso from "./pages/NovoProcesso";
 import RevisaoParecer from "./pages/RevisaoParecer";
+import ValidacaoParecer from "./pages/ValidacaoParecer";
 import ResultadoFinal from "./pages/ResultadoFinal";
 import NotFound from "./pages/NotFound";
 
