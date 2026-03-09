@@ -275,7 +275,7 @@ const ValidacaoParecer = () => {
         oculto: false,
       },
       ...dadosExtraidos
-        .filter((d) => !["objeto_contratacao", "valor_estimado", "responsavel_tecnico", "numero_processo", "orgao_responsavel", "secretaria_responsavel"].includes(d.campo))
+        .filter((d) => !["objeto_contratacao", "valor_estimado", "responsavel_tecnico", "numero_processo", "orgao_responsavel", "secretaria_responsavel", "analise_completude", "regime_tributario"].includes(d.campo))
         .map((d, i) => ({
           key: `extra_${d.id}`,
           titulo: `5.${7 + i} ${campoLabels[d.campo] || d.campo.toUpperCase()}`,
