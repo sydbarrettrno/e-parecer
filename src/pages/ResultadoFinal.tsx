@@ -148,6 +148,19 @@ const ResultadoFinal = () => {
     }
   };
 
+  const deleteVersion = useMutation({
+    mutationFn: async (parecerId: string) => {
+      const { error } = await supabase.from("pareceres").delete().eq("id", parecerId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Versão excluída com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["pareceres", id] });
+      setDeleteVersionId(null);
+    },
+    onError: () => toast.error("Erro ao excluir versão"),
+  });
+
   return (
     <AppLayout title="Resultado Final">
       {processo && (
