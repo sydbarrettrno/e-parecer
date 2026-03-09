@@ -12,7 +12,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, FileText, Clock, CheckCircle, AlertCircle, Search, MoreVertical, Pencil, Eye, RotateCcw, Check, X } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Plus, FileText, Clock, CheckCircle, AlertCircle, Search, MoreVertical, Pencil, Eye, RotateCcw, Check, X, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -29,6 +39,7 @@ const Dashboard = () => {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: processos, isLoading } = useQuery({
     queryKey: ["processos"],
@@ -53,6 +64,23 @@ const Dashboard = () => {
       setEditingId(null);
     },
     onError: () => toast.error("Erro ao atualizar título"),
+  });
+
+  const deleteProcesso = useMutation({
+    mutationFn: async (id: string) => {
+      // Delete related records first (cascading)
+      await supabase.from("pareceres").delete().eq("processo_id", id);
+      await supabase.from("dados_extraidos").delete().eq("processo_id", id);
+      await supabase.from("arquivos").delete().eq("processo_id", id);
+      const { error } = await supabase.from("processos").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Processo excluído com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["processos"] });
+      setDeleteId(null);
+    },
+    onError: () => toast.error("Erro ao excluir processo"),
   });
 
   const startEditTitle = (id: string, currentTitle: string) => {
@@ -173,6 +201,13 @@ const Dashboard = () => {
                               </Link>
                             </DropdownMenuItem>
                           )}
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleteId(processo.id)}
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5" />
+                            Excluir Processo
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -215,6 +250,26 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       )}
+
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir processo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Todos os arquivos, dados extraídos e pareceres associados serão permanentemente excluídos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteId && deleteProcesso.mutate(deleteId)}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 };
