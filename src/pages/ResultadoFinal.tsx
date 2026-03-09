@@ -24,6 +24,7 @@ import { generateParecerDocx } from "@/lib/generate-docx";
 const ResultadoFinal = () => {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const [deleteVersionId, setDeleteVersionId] = useState<string | null>(null);
 
   const { data: processo } = useQuery({
     queryKey: ["processo", id],
