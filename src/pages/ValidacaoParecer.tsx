@@ -9,11 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { generateParecerDocx } from "@/lib/generate-docx";
 import {
-  Pencil, Check, X, Eye, EyeOff, FileText, Loader2, ArrowLeft, Download, Plus,
+  Pencil, Check, X, Eye, EyeOff, FileText, Loader2, ArrowLeft, ArrowRight, Plus,
 } from "lucide-react";
 
 interface SecaoParecer {
@@ -40,10 +37,7 @@ const ValidacaoParecer = () => {
     queryKey: ["processo", id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("processos")
-        .select("*")
-        .eq("id", id!)
-        .single();
+        .from("processos").select("*").eq("id", id!).single();
       if (error) throw error;
       return data;
     },
@@ -53,10 +47,7 @@ const ValidacaoParecer = () => {
     queryKey: ["dados_extraidos_visible", id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("dados_extraidos")
-        .select("*")
-        .eq("processo_id", id!)
-        .eq("oculto", false);
+        .from("dados_extraidos").select("*").eq("processo_id", id!).eq("oculto", false);
       if (error) throw error;
       return data;
     },
@@ -66,37 +57,14 @@ const ValidacaoParecer = () => {
     queryKey: ["arquivos", id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("arquivos")
-        .select("*")
-        .eq("processo_id", id!);
+        .from("arquivos").select("*").eq("processo_id", id!);
       if (error) throw error;
       return data;
     },
   });
 
-  const { data: pareceres } = useQuery({
-    queryKey: ["pareceres", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pareceres")
-        .select("*")
-        .eq("processo_id", id!)
-        .order("versao", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const campoLabels: Record<string, string> = {
-    objeto_contratacao: "Objeto da Contratação",
-    numero_processo: "Número do Processo",
-    orgao_responsavel: "Órgão Responsável",
-    secretaria_responsavel: "Secretaria Responsável",
-    valor_estimado: "Valor Estimado",
-    responsavel_tecnico: "Responsável Técnico",
-    analise_completude: "Análise de Completude Documental",
-    regime_tributario: "Regime Tributário",
-  };
+  const normalize = (text: string) =>
+    text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
   // Build sections from extracted data once loaded
   useEffect(() => {
@@ -111,49 +79,64 @@ const ValidacaoParecer = () => {
       };
     });
 
-    const docsList = arquivos
-      .map((a, i) => `${i + 1}. ${a.nome_original} [${a.categoria || "OUTROS"}]`)
-      .join("\n");
+    // Group documents by category for display
+    const categoryLabels: Record<string, string> = {
+      MEMORIAL_OU_TR: "MD – Memorial Descritivo",
+      CADASTRO_TOPOGRAFIA: "CAT – Cadastro / Topografia",
+      DRENAGEM: "DRE – Drenagem",
+      URBANIZACAO_SINALIZACAO: "URB – Urbanização / Sinalização",
+      ORCAMENTO: "ORC – Orçamento",
+      CRONOGRAMA: "CRO – Cronograma",
+      RESPONSABILIDADE_TECNICA: "ART/RRT – Responsabilidade Técnica",
+      ADMINISTRATIVO: "ADM – Administrativo",
+      OUTROS: "Complementares",
+    };
 
-    // ── Helper: group files by category ──
+    const grouped: Record<string, string[]> = {};
+    arquivos.forEach((a) => {
+      const cat = a.categoria || "OUTROS";
+      if (!grouped[cat]) grouped[cat] = [];
+      const shortName = a.nome_original.split("/").pop() || a.nome_original;
+      grouped[cat].push(shortName);
+    });
+
+    const docsLines: string[] = [];
+    for (const [cat, files] of Object.entries(grouped)) {
+      const label = categoryLabels[cat] || cat;
+      docsLines.push(`${label}:`);
+      files.forEach((f) => docsLines.push(`• ${f}`));
+      docsLines.push("");
+    }
+    const docsText = docsLines.join("\n").trim();
+
+    // Helper functions
     const byCategory = (cat: string) => arquivos.filter((a) => a.categoria === cat);
+    const listFileNames = (cat: string) => byCategory(cat).map((a) => a.nome_original.split("/").pop() || a.nome_original);
 
-    const listFileNames = (cat: string) =>
-      byCategory(cat).map((a) => a.nome_original);
-
-    // ── 5.1 PROJETOS E DEMAIS DOCUMENTOS TÉCNICOS ──
+    // 5.1 Projetos
     const memoriais = listFileNames("MEMORIAL_OU_TR");
     const drenagem = listFileNames("DRENAGEM");
     const cadastro = listFileNames("CADASTRO_TOPOGRAFIA");
     const urbSin = listFileNames("URBANIZACAO_SINALIZACAO");
     const artRrt = listFileNames("RESPONSABILIDADE_TECNICA");
-
     const projetosLines: string[] = [];
     if (memoriais.length > 0) projetosLines.push(`Memorial descritivo / Termo de referência: ${memoriais.join(", ")}.`);
     if (drenagem.length > 0) projetosLines.push(`Projeto de drenagem: ${drenagem.join(", ")}.`);
     if (cadastro.length > 0) projetosLines.push(`Cadastro / Topografia: ${cadastro.join(", ")}.`);
     if (urbSin.length > 0) projetosLines.push(`Urbanização / Sinalização: ${urbSin.join(", ")}.`);
     if (artRrt.length > 0) projetosLines.push(`ART/RRT: ${artRrt.join(", ")}.`);
-
     const projetosTexto = projetosLines.length > 0
       ? `Foram identificados os seguintes documentos técnicos:\n${projetosLines.join("\n")}`
-      : "Não foram identificados projetos ou documentos técnicos no conjunto documental apresentado.";
+      : "Não foram identificados projetos ou documentos técnicos.";
 
-    // ── 5.3 DETERMINAÇÃO DOS CUSTOS ──
+    // 5.3 Custos
     const orcFiles = listFileNames("ORCAMENTO");
-    const orcSintetico = orcFiles.filter((n) => {
-      const nl = n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      return nl.includes("orcamento sintetico") || nl.includes("sintetico");
-    });
+    const orcSintetico = orcFiles.filter((n) => normalize(n).includes("sintetico"));
     const composicoes = orcFiles.filter((n) => n.toLowerCase().includes("composi"));
     const memoriaCalc = orcFiles.filter((n) => n.toLowerCase().includes("memoria"));
-    const cotacoes = orcFiles.filter((n) => {
-      const nl = n.toLowerCase();
-      return nl.includes("cotac") || nl.includes("cotaç");
-    });
+    const cotacoes = orcFiles.filter((n) => normalize(n).includes("cotac"));
     const curvaAbc = orcFiles.filter((n) => n.toLowerCase().includes("curva"));
     const dmtFiles = orcFiles.filter((n) => n.toLowerCase().includes("dmt"));
-
     const custosLines: string[] = [];
     if (orcSintetico.length > 0) custosLines.push(`Orçamento Sintético: ${orcSintetico.join(", ")}.`);
     if (composicoes.length > 0) custosLines.push(`Composições de custos: ${composicoes.join(", ")}.`);
@@ -161,31 +144,26 @@ const ValidacaoParecer = () => {
     if (cotacoes.length > 0) custosLines.push(`Cotações: ${cotacoes.join(", ")}.`);
     if (curvaAbc.length > 0) custosLines.push(`Curva ABC: ${curvaAbc.join(", ")}.`);
     if (dmtFiles.length > 0) custosLines.push(`DMT: ${dmtFiles.join(", ")}.`);
-
     const custosTexto = custosLines.length > 0
       ? `Foram identificados os seguintes documentos de composição de custos:\n${custosLines.join("\n")}`
       : "Não foram identificados documentos de composição de custos.";
 
-    // ── 5.4 ONERAÇÃO / DESONERAÇÃO ──
-    const allNames = arquivos.map((a) => a.nome_original.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
-    const hasDesonerado = allNames.some((n) => n.includes("desonerado") || n.includes("desoneracao") || n.includes("sem desoneracao"));
+    // 5.4 Oneração
+    const allNames = arquivos.map((a) => normalize(a.nome_original));
+    const hasDesonerado = allNames.some((n) => n.includes("desonerado") || n.includes("desoneracao"));
     const hasOnerado = allNames.some((n) => n.includes("onerado") && !n.includes("desonerado"));
     let oneracaoTexto = "Não foram identificados documentos relativos à oneração ou desoneração.";
-    if (hasDesonerado && hasOnerado) {
-      oneracaoTexto = "Foram identificados documentos com referência a regime desonerado e onerado.";
-    } else if (hasDesonerado) {
-      oneracaoTexto = "Foram identificados documentos com referência a regime desonerado.";
-    } else if (hasOnerado) {
-      oneracaoTexto = "Foram identificados documentos com referência a regime onerado.";
-    }
+    if (hasDesonerado && hasOnerado) oneracaoTexto = "Foram identificados documentos com referência a regime desonerado e onerado.";
+    else if (hasDesonerado) oneracaoTexto = "Foram identificados documentos com referência a regime desonerado.";
+    else if (hasOnerado) oneracaoTexto = "Foram identificados documentos com referência a regime onerado.";
 
-    // ── 5.5 BDI ──
+    // 5.5 BDI
     const bdiFiles = orcFiles.filter((n) => n.toLowerCase().includes("bdi"));
     const bdiTexto = bdiFiles.length > 0
       ? `Foi identificada a presença de BDI nos seguintes documentos: ${bdiFiles.join(", ")}.`
       : "Não foi identificado documento de BDI no conjunto documental apresentado.";
 
-    // ── 5.6 CRONOGRAMA E MEMORIAIS ──
+    // 5.6 Cronograma
     const cronoFiles = listFileNames("CRONOGRAMA");
     const cronoLines: string[] = [];
     if (cronoFiles.length > 0) cronoLines.push(`Cronograma: ${cronoFiles.join(", ")}.`);
@@ -194,26 +172,14 @@ const ValidacaoParecer = () => {
       ? `Foram identificados os seguintes documentos:\n${cronoLines.join("\n")}`
       : "Não foram identificados cronograma ou memoriais no conjunto documental.";
 
-    // ── CONCLUSÃO ──
-    const totalDocs = arquivos.length;
-    const categoriasPresentes = [...new Set(arquivos.map((a) => a.categoria).filter(Boolean))];
-    const hasFundamentacao = projetosLines.length > 0 || custosLines.length > 0 || cronoFiles.length > 0;
-
-    let conclusaoTexto: string;
-    if (hasFundamentacao) {
-      conclusaoTexto = `Parecer técnico elaborado com base na análise de ${totalDocs} documento(s) integrante(s) do processo administrativo nº ${processo.numero_processo}.\n\n` +
-        `Foram identificadas ${categoriasPresentes.length} categoria(s) documental(is) no conjunto analisado. ` +
-        `A documentação técnica apresentada foi avaliada quanto à completude e consistência para fins de instrução do procedimento licitatório.`;
-    } else {
-      conclusaoTexto = `Parecer técnico elaborado com base na análise de ${totalDocs} documento(s) integrante(s) do processo administrativo nº ${processo.numero_processo}.\n\n` +
-        `A capacidade de leitura automatizada dos documentos foi limitada. Recomenda-se revisão manual dos blocos da fundamentação técnica antes da emissão final do parecer.`;
-    }
+    // Conclusão institucional
+    const conclusaoTexto = `Diante do exposto, com base na análise da documentação técnica apresentada para instruir o processo administrativo nº ${processo.numero_processo}, este parecer técnico conclui que o conjunto documental foi avaliado quanto à sua completude e consistência, à luz da Lei nº 14.133/2021, estando apto a subsidiar a continuidade do procedimento licitatório.`;
 
     const built: SecaoParecer[] = [
       {
         key: "objeto",
         titulo: "1. IDENTIFICAÇÃO E OBJETO",
-        texto: dadosMap["objeto_contratacao"]?.valor || "Não foi identificada informação correspondente nos documentos analisados.",
+        texto: dadosMap["objeto_contratacao"]?.valor || processo.nome_processo,
         origem: dadosMap["objeto_contratacao"]?.origem,
         confianca: dadosMap["objeto_contratacao"]?.confianca,
         oculto: false,
@@ -221,7 +187,7 @@ const ValidacaoParecer = () => {
       {
         key: "documentos_analisados",
         titulo: "2. DOCUMENTOS ANALISADOS",
-        texto: docsList || "Nenhum documento analisado.",
+        texto: docsText || "Nenhum documento analisado.",
         oculto: false,
       },
       {
@@ -275,53 +241,9 @@ const ValidacaoParecer = () => {
         oculto: false,
       },
       {
-        key: "regime_tributario",
-        titulo: "5.7 REGIME TRIBUTÁRIO",
-        texto: dadosMap["regime_tributario"]?.valor || oneracaoTexto,
-        origem: dadosMap["regime_tributario"]?.origem,
-        confianca: dadosMap["regime_tributario"]?.confianca,
-        oculto: false,
-      },
-      ...dadosExtraidos
-        .filter((d) => !["objeto_contratacao", "valor_estimado", "responsavel_tecnico", "numero_processo", "orgao_responsavel", "secretaria_responsavel", "analise_completude", "regime_tributario"].includes(d.campo))
-        .map((d, i) => ({
-          key: `extra_${d.id}`,
-          titulo: `5.${7 + i} ${campoLabels[d.campo] || d.campo.toUpperCase()}`,
-          texto: d.valor,
-          origem: d.origem_documento ?? undefined,
-          confianca: d.confianca ?? undefined,
-          oculto: false,
-        })),
-      {
         key: "conclusao",
         titulo: "6. CONCLUSÃO – PARECER TÉCNICO",
         texto: conclusaoTexto,
-        oculto: false,
-      },
-      {
-        key: "completude",
-        titulo: "ANÁLISE DE COMPLETUDE DOCUMENTAL",
-        texto: dadosMap["analise_completude"]?.valor || "Análise de completude não disponível. Verifique manualmente se todos os documentos essenciais estão presentes.",
-        origem: dadosMap["analise_completude"]?.origem,
-        confianca: dadosMap["analise_completude"]?.confianca,
-        oculto: false,
-      },
-      {
-        key: "inconsistencias",
-        titulo: "REGISTRO DE INCONSISTÊNCIAS GRAVES",
-        texto: "Não foram identificadas inconsistências graves nos documentos analisados.",
-        oculto: false,
-      },
-      {
-        key: "complementacao",
-        titulo: "SOLICITAÇÃO DE COMPLEMENTAÇÃO DOCUMENTAL",
-        texto: "Não há solicitação de complementação documental.",
-        oculto: false,
-      },
-      {
-        key: "responsavel_tecnico_final",
-        titulo: "RESPONSÁVEL TÉCNICO",
-        texto: dadosMap["responsavel_tecnico"]?.valor || "Não foi identificada informação correspondente nos documentos analisados.",
         oculto: false,
       },
     ];
@@ -353,73 +275,6 @@ const ValidacaoParecer = () => {
     media: "bg-warning text-warning-foreground",
     baixa: "bg-destructive text-destructive-foreground",
   };
-
-  const gerarParecer = useMutation({
-    mutationFn: async () => {
-      if (!processo || !arquivos) throw new Error("Dados não carregados");
-
-      const nextVersion = (pareceres?.[0]?.versao ?? 0) + 1;
-      const visibleSections = secoes.filter((s) => !s.oculto);
-
-      const getSecao = (key: string) =>
-        visibleSections.find((s) => s.key === key)?.texto || "";
-
-      const conteudo = {
-        identificacao_parecer: {
-          numero: `Nº ${String(nextVersion).padStart(3, "0")}/${new Date().getFullYear()} – ${processo.secretaria}`,
-          data: format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR }),
-        },
-        identificacao_processo: {
-          nome: processo.nome_processo,
-          numero: processo.numero_processo,
-          orgao: processo.orgao,
-          secretaria: processo.secretaria,
-        },
-        objeto: getSecao("objeto") || "Não foi identificada informação correspondente nos documentos analisados.",
-        documentos_analisados: arquivos.map((a) => ({
-          nome: a.nome_original,
-          categoria: a.categoria || "OUTROS",
-        })),
-        assunto: getSecao("assunto") || null,
-        consideracoes_iniciais: getSecao("consideracoes_iniciais") || null,
-        analise_tecnica: visibleSections
-          .filter((s) => s.key.startsWith("valor_estimado") || s.key.startsWith("extra_") || s.key === "projetos_documentos" || s.key === "determinacao_custos" || s.key === "oneracao_desoneracao" || s.key === "bdi" || s.key === "cronograma")
-          .map((s) => ({
-            campo: s.key,
-            valor: s.texto,
-            origem: s.origem,
-            confianca: s.confianca,
-          })),
-        inconsistencias: getSecao("inconsistencias") || "Não foram identificadas inconsistências graves nos documentos analisados.",
-        complementacao: getSecao("complementacao") || null,
-        sintese: getSecao("conclusao") || "—",
-        conclusao: getSecao("conclusao") || "—",
-        responsavel_tecnico: getSecao("responsavel_tecnico_final") || "Não foi identificada informação correspondente nos documentos analisados.",
-      };
-
-      const { error } = await supabase.from("pareceres").insert({
-        processo_id: id!,
-        versao: nextVersion,
-        conteudo_json: conteudo,
-      });
-      if (error) throw error;
-
-      await supabase.from("processos").update({ status: "concluido" as const }).eq("id", id!);
-
-      return { conteudo, version: nextVersion };
-    },
-    onSuccess: async (result) => {
-      toast.success("Parecer técnico gerado com sucesso!");
-      const version = String(result.version).padStart(2, "0");
-      await generateParecerDocx(result.conteudo, `PARECER_TECNICO_V${version}.docx`);
-      queryClient.invalidateQueries({ queryKey: ["pareceres", id] });
-      queryClient.invalidateQueries({ queryKey: ["processo", id] });
-      navigate(`/resultado/${id}`);
-    },
-    onError: (err) => {
-      toast.error(`Erro ao gerar parecer: ${err.message}`);
-    },
-  });
 
   return (
     <AppLayout title="Validação do Parecer Técnico">
@@ -501,8 +356,7 @@ const ValidacaoParecer = () => {
       <div className="mb-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
         <p className="text-sm text-foreground">
           <strong>Etapa de Validação:</strong> Revise cada seção do parecer técnico abaixo.
-          Você pode editar o texto, ocultar seções ou complementar informações faltantes.
-          A geração do documento final só ocorrerá após sua confirmação.
+          Você pode editar o texto ou ocultar seções. Na próxima etapa você poderá editar o documento completo na prévia digital.
         </p>
       </div>
 
@@ -577,18 +431,11 @@ const ValidacaoParecer = () => {
                       className="min-h-[100px] text-sm"
                     />
                     <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleSaveEdit(secao.key)}
-                      >
+                      <Button size="sm" onClick={() => handleSaveEdit(secao.key)}>
                         <Check className="mr-1 h-3.5 w-3.5" />
                         Salvar
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditingKey(null)}
-                      >
+                      <Button size="sm" variant="outline" onClick={() => setEditingKey(null)}>
                         <X className="mr-1 h-3.5 w-3.5" />
                         Cancelar
                       </Button>
@@ -612,15 +459,11 @@ const ValidacaoParecer = () => {
         </Button>
         <Button
           size="lg"
-          onClick={() => gerarParecer.mutate()}
-          disabled={gerarParecer.isPending || !initialized}
+          onClick={() => navigate(`/previa/${id}`)}
+          disabled={!initialized}
         >
-          {gerarParecer.isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="mr-2 h-4 w-4" />
-          )}
-          Confirmar e Gerar Parecer Técnico
+          Prévia do Parecer
+          <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
     </AppLayout>
