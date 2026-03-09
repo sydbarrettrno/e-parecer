@@ -201,6 +201,13 @@ const Dashboard = () => {
                               </Link>
                             </DropdownMenuItem>
                           )}
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleteId(processo.id)}
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5" />
+                            Excluir Processo
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
