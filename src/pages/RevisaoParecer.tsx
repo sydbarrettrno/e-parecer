@@ -219,6 +219,17 @@ const RevisaoParecer = () => {
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Análise Técnica — Dados Extraídos</CardTitle>
             <div className="flex gap-2">
+              {isAnalyzing && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => stopAnalysis.mutate()}
+                  disabled={stopAnalysis.isPending}
+                >
+                  <StopCircle className="mr-1 h-3.5 w-3.5" />
+                  Interromper
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
