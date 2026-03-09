@@ -22,8 +22,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, FileText, Clock, CheckCircle, AlertCircle, Search, MoreVertical, Pencil, Eye, RotateCcw, Check, X, Trash2 } from "lucide-react";
+import { Plus, FileText, Clock, CheckCircle, AlertCircle, Search, MoreVertical, Pencil, Eye, RotateCcw, Check, X, Trash2, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
+import { useNavigate } from "react-router-dom";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 
@@ -36,10 +37,27 @@ const statusConfig: Record<string, { label: string; class: string; icon: typeof 
 };
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const reanalyze = useMutation({
+    mutationFn: async (processoId: string) => {
+      await supabase.from("processos").update({ status: "analisando" as const }).eq("id", processoId);
+      const { error } = await supabase.functions.invoke("analyze-documents", {
+        body: { processo_id: processoId },
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, processoId) => {
+      toast.success("Reanálise iniciada!");
+      queryClient.invalidateQueries({ queryKey: ["processos"] });
+      navigate(`/revisao/${processoId}`);
+    },
+    onError: () => toast.error("Erro ao iniciar reanálise"),
+  });
 
   const { data: processos, isLoading } = useQuery({
     queryKey: ["processos"],
@@ -192,6 +210,13 @@ const Dashboard = () => {
                               <FileText className="h-3.5 w-3.5" />
                               Ver Resultado Final
                             </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => reanalyze.mutate(processo.id)}
+                            disabled={reanalyze.isPending}
+                          >
+                            <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                            Refazer Análise
                           </DropdownMenuItem>
                           {processo.status === "concluido" && (
                             <DropdownMenuItem asChild>
