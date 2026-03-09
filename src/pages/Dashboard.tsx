@@ -37,10 +37,27 @@ const statusConfig: Record<string, { label: string; class: string; icon: typeof 
 };
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const reanalyze = useMutation({
+    mutationFn: async (processoId: string) => {
+      await supabase.from("processos").update({ status: "analisando" as const }).eq("id", processoId);
+      const { error } = await supabase.functions.invoke("analyze-documents", {
+        body: { processo_id: processoId },
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, processoId) => {
+      toast.success("Reanálise iniciada!");
+      queryClient.invalidateQueries({ queryKey: ["processos"] });
+      navigate(`/revisao/${processoId}`);
+    },
+    onError: () => toast.error("Erro ao iniciar reanálise"),
+  });
 
   const { data: processos, isLoading } = useQuery({
     queryKey: ["processos"],
