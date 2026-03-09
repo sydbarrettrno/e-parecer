@@ -39,6 +39,7 @@ const Dashboard = () => {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: processos, isLoading } = useQuery({
     queryKey: ["processos"],
