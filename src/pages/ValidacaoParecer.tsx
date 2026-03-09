@@ -94,6 +94,8 @@ const ValidacaoParecer = () => {
     secretaria_responsavel: "Secretaria Responsável",
     valor_estimado: "Valor Estimado",
     responsavel_tecnico: "Responsável Técnico",
+    analise_completude: "Análise de Completude Documental",
+    regime_tributario: "Regime Tributário",
   };
 
   // Build sections from extracted data once loaded
