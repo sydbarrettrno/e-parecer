@@ -299,6 +299,14 @@ const ValidacaoParecer = () => {
         oculto: false,
       },
       {
+        key: "completude",
+        titulo: "ANÁLISE DE COMPLETUDE DOCUMENTAL",
+        texto: dadosMap["analise_completude"]?.valor || "Análise de completude não disponível. Verifique manualmente se todos os documentos essenciais estão presentes.",
+        origem: dadosMap["analise_completude"]?.origem,
+        confianca: dadosMap["analise_completude"]?.confianca,
+        oculto: false,
+      },
+      {
         key: "inconsistencias",
         titulo: "REGISTRO DE INCONSISTÊNCIAS GRAVES",
         texto: "Não foram identificadas inconsistências graves nos documentos analisados.",
