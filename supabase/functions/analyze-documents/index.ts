@@ -15,7 +15,6 @@ const normalize = (text: string) =>
   text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 // ── HIGH-PRIORITY filename rules (checked BEFORE folder rules) ──
-// These override folder-based classification when a filename clearly indicates a different category
 const HIGH_PRIORITY_FILENAME_RULES: [string, string][] = [
   ["cronograma", "CRONOGRAMA"],
   ["art", "RESPONSABILIDADE_TECNICA"],
@@ -35,7 +34,7 @@ const FOLDER_CATEGORY_MAP: Record<string, string> = {
   "/adm/": "ADMINISTRATIVO",
 };
 
-// ── Standard filename keyword rules (checked after folder) ──
+// ── Standard filename keyword rules ──
 const FILENAME_RULES: [string, string][] = [
   ["orcamento sintetico", "ORCAMENTO"],
   ["orc sintetico", "ORCAMENTO"],
@@ -65,30 +64,20 @@ const FILENAME_RULES: [string, string][] = [
   ["pavimentacao", "URBANIZACAO_SINALIZACAO"],
 ];
 
-// ── Classification: high-priority filename → folder path → filename keywords ──
 function classifyDocument(filename: string): string {
   const normalizedPath = normalize(filename);
   const normalizedFilename = normalize(filename.split("/").pop() || filename);
 
-  // 1) High-priority filename rules (e.g. "cronograma" inside /orc/ folder)
   for (const [pattern, category] of HIGH_PRIORITY_FILENAME_RULES) {
-    if (normalizedFilename.includes(pattern)) {
-      return category;
-    }
+    if (normalizedFilename.includes(pattern)) return category;
   }
 
-  // 2) Folder path
   for (const [folder, category] of Object.entries(FOLDER_CATEGORY_MAP)) {
-    if (normalizedPath.includes(folder)) {
-      return category;
-    }
+    if (normalizedPath.includes(folder)) return category;
   }
 
-  // 3) Filename keywords
   for (const [pattern, category] of FILENAME_RULES) {
-    if (normalizedFilename.includes(pattern)) {
-      return category;
-    }
+    if (normalizedFilename.includes(pattern)) return category;
   }
 
   return "OUTROS";
@@ -112,127 +101,57 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const { data: processo, error: procErr } = await supabase
-      .from("processos")
-      .select("*")
-      .eq("id", processo_id)
-      .single();
+      .from("processos").select("*").eq("id", processo_id).single();
     if (procErr) throw procErr;
 
     const { data: arquivos, error: arqErr } = await supabase
-      .from("arquivos")
-      .select("*")
-      .eq("processo_id", processo_id);
+      .from("arquivos").select("*").eq("processo_id", processo_id);
     if (arqErr) throw arqErr;
 
     // Classify each file
     const classifiedFiles: { nome: string; categoria: string }[] = [];
-
     for (const arq of arquivos) {
       const categoria = classifyDocument(arq.nome_original);
-      await supabase
-        .from("arquivos")
-        .update({ categoria })
-        .eq("id", arq.id);
+      await supabase.from("arquivos").update({ categoria }).eq("id", arq.id);
       classifiedFiles.push({ nome: arq.nome_original, categoria });
     }
 
-    // Build discipline list
+    // Build discipline list for object description
     const disciplineMap: Record<string, string> = {
       DRENAGEM: "drenagem",
       URBANIZACAO_SINALIZACAO: "urbanização e sinalização",
       CADASTRO_TOPOGRAFIA: "cadastro e topografia",
-      MEMORIAL_OU_TR: "memorial descritivo / termo de referência",
-      ORCAMENTO: "orçamento e composição de custos",
-      CRONOGRAMA: "cronograma físico-financeiro",
-      RESPONSABILIDADE_TECNICA: "responsabilidade técnica (ART/RRT)",
+      MEMORIAL_OU_TR: "memorial descritivo",
+      ORCAMENTO: "orçamento",
+      CRONOGRAMA: "cronograma",
+      RESPONSABILIDADE_TECNICA: "responsabilidade técnica",
       ADMINISTRATIVO: "documentos administrativos",
     };
     const presentCategories = [...new Set(classifiedFiles.map((f) => f.categoria))];
-    const presentDisciplines = presentCategories
-      .filter((c) => disciplineMap[c])
-      .map((c) => disciplineMap[c]);
 
-    // Group files by category for AI context
-    const filesByCategory: Record<string, string[]> = {};
-    classifiedFiles.forEach((f) => {
-      if (!filesByCategory[f.categoria]) filesByCategory[f.categoria] = [];
-      filesByCategory[f.categoria].push(f.nome);
-    });
+    // Simple AI prompt: only object description, no complex analysis
+    const disciplinesForObject = presentCategories
+      .filter((c) => !["ORCAMENTO", "ADMINISTRATIVO", "OUTROS", "RESPONSABILIDADE_TECNICA", "CRONOGRAMA"].includes(c))
+      .map((c) => disciplineMap[c])
+      .filter(Boolean);
 
-    const categoryBreakdown = Object.entries(filesByCategory)
-      .map(([cat, files]) => `${cat} (${files.length} doc${files.length > 1 ? 's' : ''}):\n${files.map(f => `  - ${f}`).join("\n")}`)
-      .join("\n\n");
+    const prompt = `Você é um analista técnico. Com base nas informações abaixo, gere APENAS o objeto da contratação.
 
-    // Identify missing categories for completeness analysis
-    const expectedCategories = ["MEMORIAL_OU_TR", "ORCAMENTO", "CRONOGRAMA"];
-    const missingCategories = expectedCategories.filter(c => !presentCategories.includes(c));
-    const missingInfo = missingCategories.length > 0
-      ? `CATEGORIAS AUSENTES: ${missingCategories.map(c => disciplineMap[c] || c).join(", ")}`
-      : "TODAS AS CATEGORIAS ESSENCIAIS ESTÃO PRESENTES";
+NOME DO PROCESSO: ${processo.nome_processo}
+DISCIPLINAS IDENTIFICADAS NOS DOCUMENTOS: ${disciplinesForObject.join(", ") || "não identificadas"}
 
-    // ── Enhanced AI prompt ──
-    const prompt = `Você é um analista técnico sênior especializado em processos licitatórios de obras públicas, com profundo conhecimento da Lei nº 14.133/2021.
+REGRAS:
+- O objeto deve descrever a OBRA ou INTERVENÇÃO, não os documentos
+- NÃO mencione "execução de serviços de orçamento" ou "memorial descritivo"
+- Identifique o local/logradouro a partir do nome do processo
+- Formato: "Execução de serviços de [obras/disciplinas técnicas] da/do [local]."
+- Exemplo: "Execução de serviços de pavimentação, drenagem, urbanização e sinalização da Rua Angelina das Dores."
 
-INFORMAÇÕES DO PROCESSO:
-- Nome: ${processo.nome_processo}
-- Número: ${processo.numero_processo}
-- Órgão: ${processo.orgao}
-- Secretaria: ${processo.secretaria}
+Responda APENAS com o texto do objeto, sem aspas, sem explicações.`;
 
-DOCUMENTOS CLASSIFICADOS POR CATEGORIA:
-${categoryBreakdown}
-
-DISCIPLINAS IDENTIFICADAS: ${presentDisciplines.join(", ") || "nenhuma identificada"}
-${missingInfo}
-
-CAMPOS A EXTRAIR — responda com um array JSON:
-
-1. "objeto_contratacao" — Construa uma descrição técnica completa do objeto da contratação.
-   REGRAS:
-   - NÃO repita simplesmente o nome do processo
-   - Use as disciplinas identificadas para compor a descrição
-   - Identifique o local/logradouro a partir do nome do processo
-   - Formato esperado: "Execução de serviços de [disciplinas] da/do [local], no município de [município se identificável]"
-   - Confiança: "alta"
-
-2. "numero_processo" — Use exatamente: "${processo.numero_processo}". Confiança: "alta"
-
-3. "orgao_responsavel" — Use exatamente: "${processo.orgao}". Confiança: "alta"
-
-4. "secretaria_responsavel" — Use exatamente: "${processo.secretaria}". Confiança: "alta"
-
-5. "valor_estimado" — Analise os nomes dos arquivos de orçamento.
-   - Se há orçamento sintético, mencione que existe e indique os documentos.
-   - Se há versões com e sem desoneração, mencione ambas.
-   - Se não conseguir identificar valor numérico, diga: "Valor a ser verificado nos documentos de orçamento sintético identificados: [lista dos docs]"
-   - Confiança: "baixa" se sem valor, "media" se referenciou documentos
-
-6. "responsavel_tecnico" — Verifique se há ART/RRT nos documentos.
-   - Se sim: "A ser verificado nos documentos de responsabilidade técnica identificados: [docs]"
-   - Se não: "Não foram identificados documentos de responsabilidade técnica (ART/RRT)"
-   - Confiança: "baixa"
-
-7. "analise_completude" — Faça uma análise de completude documental:
-   - Liste categorias presentes e ausentes
-   - Para cada categoria ausente, indique a importância para o processo licitatório
-   - Se alguma peça essencial está ausente (como cronograma separado, ART/RRT), recomende complementação
-   - Confiança: "alta"
-
-8. "regime_tributario" — Analise os nomes dos documentos de orçamento:
-   - Identifique se há versões desoneradas e sem desoneração
-   - Indique qual parece ser o regime adotado
-   - Confiança: "media"
-
-INSTRUÇÕES:
-- Responda APENAS com um array JSON, sem markdown, sem explicações
-- Formato: [{"campo":"...","valor":"...","origem_documento":"...","confianca":"alta|media|baixa"}]
-- A origem_documento deve indicar de quais documentos você inferiu a informação
-- Seja técnico, preciso e detalhado nas respostas`;
-
-    let extractedData: any[] = [];
+    let objetoTexto = "";
 
     try {
-      console.log("Calling Lovable AI gateway with enhanced prompt...");
       const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -240,66 +159,54 @@ INSTRUÇÕES:
           "Authorization": `Bearer ${LOVABLE_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-2.5-flash-lite",
           messages: [{ role: "user", content: prompt }],
         }),
       });
 
       if (aiResponse.ok) {
         const aiResult = await aiResponse.json();
-        const content = aiResult.choices?.[0]?.message?.content || "";
-        console.log("AI response received, length:", content.length);
-        const jsonMatch = content.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          extractedData = JSON.parse(jsonMatch[0]);
-        }
-      } else {
-        const errStatus = aiResponse.status;
-        const errText = await aiResponse.text();
-        console.error("AI gateway error:", errStatus, errText);
+        objetoTexto = aiResult.choices?.[0]?.message?.content?.trim() || "";
       }
     } catch (aiErr) {
-      console.error("AI analysis error:", aiErr);
+      console.error("AI error:", aiErr);
     }
 
-    // Fallback if AI fails
-    if (extractedData.length === 0) {
-      const objetoFallback = presentDisciplines.length > 0
-        ? `Execução de serviços de ${presentDisciplines.join(", ")} – ${processo.nome_processo}`
-        : processo.nome_processo;
-
-      extractedData = [
-        { campo: "objeto_contratacao", valor: objetoFallback, origem_documento: "Inferido dos documentos classificados", confianca: "media" },
-        { campo: "numero_processo", valor: processo.numero_processo, origem_documento: "Cadastro do processo", confianca: "alta" },
-        { campo: "orgao_responsavel", valor: processo.orgao, origem_documento: "Cadastro do processo", confianca: "alta" },
-        { campo: "secretaria_responsavel", valor: processo.secretaria, origem_documento: "Cadastro do processo", confianca: "alta" },
-        { campo: "valor_estimado", valor: "Não foi possível identificar. Verificar orçamento sintético.", origem_documento: null, confianca: "baixa" },
-        { campo: "responsavel_tecnico", valor: "Não foram identificados documentos de responsabilidade técnica.", origem_documento: null, confianca: "baixa" },
-      ];
+    // Fallback
+    if (!objetoTexto) {
+      const obras = disciplinesForObject.length > 0
+        ? disciplinesForObject.join(", ")
+        : "obras";
+      objetoTexto = `Execução de serviços de ${obras} – ${processo.nome_processo}.`;
     }
 
-    // Clear old extracted data & insert new
+    // Clear old extracted data & insert basic fields
     await supabase.from("dados_extraidos").delete().eq("processo_id", processo_id);
 
-    for (const item of extractedData) {
+    const basicData = [
+      { campo: "objeto_contratacao", valor: objetoTexto, origem_documento: "Inferido do nome do processo e documentos classificados", confianca: "media" },
+      { campo: "numero_processo", valor: processo.numero_processo, origem_documento: "Cadastro do processo", confianca: "alta" },
+      { campo: "orgao_responsavel", valor: processo.orgao, origem_documento: "Cadastro do processo", confianca: "alta" },
+      { campo: "secretaria_responsavel", valor: processo.secretaria, origem_documento: "Cadastro do processo", confianca: "alta" },
+      { campo: "valor_estimado", valor: "Não foi identificada informação correspondente nos documentos analisados.", origem_documento: null, confianca: "baixa" },
+    ];
+
+    for (const item of basicData) {
       await supabase.from("dados_extraidos").insert({
         processo_id,
         campo: item.campo,
         valor: item.valor,
-        origem_documento: item.origem_documento || null,
-        confianca: item.confianca || "media",
+        origem_documento: item.origem_documento,
+        confianca: item.confianca,
       });
     }
 
-    await supabase
-      .from("processos")
-      .update({ status: "revisao" })
-      .eq("id", processo_id);
+    await supabase.from("processos").update({ status: "revisao" }).eq("id", processo_id);
 
     return new Response(
       JSON.stringify({
         success: true,
-        extracted: extractedData.length,
+        extracted: basicData.length,
         filesProcessed: arquivos.length,
         classifications: classifiedFiles,
       }),

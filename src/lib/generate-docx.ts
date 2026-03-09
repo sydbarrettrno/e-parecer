@@ -8,17 +8,36 @@ import {
 } from "docx";
 import { saveAs } from "file-saver";
 
-export async function generateParecerDocx(conteudo: any, filename: string) {
-  const orgao = conteudo.identificacao_processo?.orgao || "Órgão";
-  const secretaria = conteudo.identificacao_processo?.secretaria || "Secretaria";
-  const numeroParecer = conteudo.identificacao_parecer?.numero || "";
+export interface SecaoDocumento {
+  key: string;
+  titulo: string;
+  texto: string;
+  nivel: "secao" | "subsecao";
+}
 
+export interface DadosAssinatura {
+  local: string;
+  data: string;
+  nome: string;
+  cargo: string;
+  registro: string;
+}
+
+export interface DadosParecer {
+  numeroParecer: string;
+  orgao: string;
+  secretaria: string;
+  secoes: SecaoDocumento[];
+  assinatura: DadosAssinatura;
+}
+
+export async function generateParecerDocx(dados: DadosParecer, filename: string) {
   const children: Paragraph[] = [];
 
   // === HEADER ===
   children.push(
-    headerParagraph(orgao),
-    headerParagraph(secretaria),
+    headerParagraph(dados.orgao),
+    headerParagraph(dados.secretaria),
     spacer(),
   );
 
@@ -29,7 +48,7 @@ export async function generateParecerDocx(conteudo: any, filename: string) {
       spacing: { after: 400 },
       children: [
         new TextRun({
-          text: `PARECER TÉCNICO ${numeroParecer}`,
+          text: `PARECER TÉCNICO ${dados.numeroParecer}`,
           bold: true,
           size: 28,
           font: "Arial",
@@ -38,191 +57,75 @@ export async function generateParecerDocx(conteudo: any, filename: string) {
     }),
   );
 
-  // === 1. IDENTIFICAÇÃO E OBJETO ===
-  children.push(sectionTitle("1. IDENTIFICAÇÃO E OBJETO"));
-  children.push(
-    textParagraph(
-      conteudo.objeto ||
-        "Não foi identificada informação correspondente nos documentos analisados."
-    ),
-  );
-  children.push(spacer());
+  // === SEÇÕES ===
+  for (const secao of dados.secoes) {
+    if (secao.nivel === "secao") {
+      children.push(sectionTitle(secao.titulo));
+    } else {
+      children.push(subsectionTitle(secao.titulo));
+    }
 
-  // === 2. DOCUMENTOS ANALISADOS ===
-  children.push(sectionTitle("2. DOCUMENTOS ANALISADOS"));
-  children.push(
-    textParagraph("Foram analisados, para fins de emissão deste parecer técnico:"),
-  );
-  if (conteudo.documentos_analisados?.length > 0) {
-    conteudo.documentos_analisados.forEach((doc: any, i: number) => {
-      children.push(
-        bulletParagraph(`${doc.nome} [${doc.categoria}]`),
-      );
-    });
-  } else {
-    children.push(textParagraph("Nenhum documento analisado."));
+    // Split text by newlines for proper paragraphs
+    const paragraphs = secao.texto.split("\n").filter((l) => l.trim());
+    for (const p of paragraphs) {
+      if (p.startsWith("• ") || p.startsWith("- ")) {
+        children.push(bulletParagraph(p.replace(/^[•\-]\s*/, "")));
+      } else {
+        children.push(textParagraph(p));
+      }
+    }
   }
+
+  // === "É este o parecer." ===
   children.push(spacer());
-
-  // === 3. ASSUNTO ===
-  children.push(sectionTitle("3. ASSUNTO"));
-  children.push(
-    textParagraph(
-      conteudo.assunto ||
-        `Elaboração de Parecer Técnico para o material apresentado, visando instruir procedimento licitatório, conforme especificações constantes nas peças técnicas que integram o processo.`
-    ),
-  );
-  children.push(spacer());
-
-  // === 4. CONSIDERAÇÕES INICIAIS ===
-  children.push(sectionTitle("4. CONSIDERAÇÕES INICIAIS"));
-  children.push(
-    textParagraph(
-      conteudo.consideracoes_iniciais ||
-        "Este parecer tem por objetivo verificar se o conjunto documental apresentado possui completude, clareza e consistência documental para subsidiar a instrução do procedimento licitatório, à luz da Lei nº 14.133/2021."
-    ),
-  );
-  children.push(spacer());
-
-  // === 5. FUNDAMENTAÇÃO TÉCNICA ===
-  children.push(sectionTitle("5. FUNDAMENTAÇÃO TÉCNICA"));
-
-  // 5.1 Projetos e Documentos Técnicos
-  children.push(subsectionTitle("5.1 PROJETOS E DEMAIS DOCUMENTOS TÉCNICOS"));
-  children.push(
-    textParagraph(
-      getAnaliseField(conteudo, "projetos_documentos") ||
-        "Não foi identificada informação correspondente nos documentos analisados."
-    ),
-  );
-
-  // 5.2 Valor Global Orçado
-  children.push(subsectionTitle("5.2 VALOR GLOBAL ORÇADO"));
-  children.push(
-    textParagraph(
-      getAnaliseField(conteudo, "valor_estimado") ||
-        getAnaliseField(conteudo, "VALOR ESTIMADO") ||
-        "Não foi identificada informação correspondente nos documentos analisados."
-    ),
-  );
-
-  // 5.3 Determinação dos Custos
-  children.push(subsectionTitle("5.3 DETERMINAÇÃO DOS CUSTOS"));
-  children.push(
-    textParagraph(
-      getAnaliseField(conteudo, "determinacao_custos") ||
-        "Não foi identificada informação correspondente nos documentos analisados."
-    ),
-  );
-
-  // 5.4 Oneração / Desoneração
-  children.push(subsectionTitle("5.4 ONERAÇÃO / DESONERAÇÃO"));
-  children.push(
-    textParagraph(
-      getAnaliseField(conteudo, "oneracao_desoneracao") ||
-        "Não foi identificada informação correspondente nos documentos analisados."
-    ),
-  );
-
-  // 5.5 BDI
-  children.push(subsectionTitle("5.5 BDI"));
-  children.push(
-    textParagraph(
-      getAnaliseField(conteudo, "bdi") ||
-        "Não foi identificada informação correspondente nos documentos analisados."
-    ),
-  );
-
-  // 5.6 Cronograma
-  children.push(subsectionTitle("5.6 CRONOGRAMA FÍSICO-FINANCEIRO E MEMORIAIS"));
-  children.push(
-    textParagraph(
-      getAnaliseField(conteudo, "cronograma") ||
-        "Não foi identificada informação correspondente nos documentos analisados."
-    ),
-  );
-
-  // Additional analysis sections from analise_tecnica
-  const standardFields = [
-    "projetos_documentos", "valor_estimado", "VALOR ESTIMADO",
-    "determinacao_custos", "oneracao_desoneracao", "bdi", "cronograma",
-    "RESPONSÁVEL TÉCNICO", "responsavel_tecnico",
-  ];
-  let subIndex = 7;
-  if (conteudo.analise_tecnica) {
-    conteudo.analise_tecnica
-      .filter((item: any) => !standardFields.includes(item.campo))
-      .forEach((item: any) => {
-        children.push(subsectionTitle(`5.${subIndex} ${item.campo.toUpperCase()}`));
-        children.push(textParagraph(item.valor));
-        if (item.origem) {
-          children.push(metaParagraph(`Origem: ${item.origem}`));
-        }
-        subIndex++;
-      });
-  }
-  children.push(spacer());
-
-  // === 6. CONCLUSÃO – PARECER TÉCNICO ===
-  children.push(sectionTitle("6. CONCLUSÃO – PARECER TÉCNICO"));
-  children.push(
-    textParagraph(
-      conteudo.sintese ||
-        conteudo.conclusao ||
-        "—"
-    ),
-  );
   children.push(textParagraph("É este o parecer."));
   children.push(spacer());
 
-  // === Inconsistências (se houver) ===
-  if (conteudo.inconsistencias && conteudo.inconsistencias !== "Não foram identificadas inconsistências graves nos documentos analisados.") {
-    children.push(sectionTitle("REGISTRO DE INCONSISTÊNCIAS GRAVES"));
-    children.push(textParagraph(conteudo.inconsistencias));
-    children.push(spacer());
-  }
-
-  // === Complementação (se houver) ===
-  if (conteudo.complementacao) {
-    children.push(sectionTitle("SOLICITAÇÃO DE COMPLEMENTAÇÃO DOCUMENTAL"));
-    children.push(textParagraph(conteudo.complementacao));
-    children.push(spacer());
-  }
-
   // === Assinatura ===
-  children.push(
-    textParagraph(
-      conteudo.identificacao_parecer?.data
-        ? `${conteudo.identificacao_processo?.orgao || ""}, ${conteudo.identificacao_parecer.data}.`
-        : ""
-    ),
-  );
+  if (dados.assinatura.local || dados.assinatura.data) {
+    children.push(
+      textParagraph(
+        [dados.assinatura.local, dados.assinatura.data].filter(Boolean).join(", ") + "."
+      ),
+    );
+  }
   children.push(spacer());
   children.push(spacer());
   children.push(
     new Paragraph({
       alignment: AlignmentType.LEFT,
       children: [
-        new TextRun({
-          text: "________________________________",
-          size: 22,
-          font: "Arial",
-        }),
+        new TextRun({ text: "________________________________", size: 22, font: "Arial" }),
       ],
     }),
   );
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: conteudo.responsavel_tecnico || "Responsável Técnico",
-          bold: true,
-          size: 22,
-          font: "Arial",
-        }),
-      ],
-    }),
-  );
+  if (dados.assinatura.nome) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: dados.assinatura.nome, bold: true, size: 22, font: "Arial" }),
+        ],
+      }),
+    );
+  }
+  if (dados.assinatura.cargo) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: dados.assinatura.cargo, size: 22, font: "Arial" }),
+        ],
+      }),
+    );
+  }
+  if (dados.assinatura.registro) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: dados.assinatura.registro, size: 22, font: "Arial" }),
+        ],
+      }),
+    );
+  }
 
   const doc = new Document({
     sections: [
@@ -241,23 +144,109 @@ export async function generateParecerDocx(conteudo: any, filename: string) {
   saveAs(blob, filename);
 }
 
-function getAnaliseField(conteudo: any, campo: string): string | null {
-  if (!conteudo.analise_tecnica) return null;
-  const item = conteudo.analise_tecnica.find((a: any) => a.campo === campo);
-  return item?.valor || null;
+// === Legacy support: accept old format from ResultadoFinal ===
+export async function generateParecerDocxLegacy(conteudo: any, filename: string) {
+  const orgao = conteudo.identificacao_processo?.orgao || "Órgão";
+  const secretaria = conteudo.identificacao_processo?.secretaria || "Secretaria";
+  const numeroParecer = conteudo.identificacao_parecer?.numero || "";
+
+  const secoes: SecaoDocumento[] = [];
+
+  // Build sections from legacy format
+  if (conteudo.objeto) {
+    secoes.push({ key: "objeto", titulo: "1. IDENTIFICAÇÃO E OBJETO", texto: conteudo.objeto, nivel: "secao" });
+  }
+
+  if (conteudo.documentos_analisados?.length > 0) {
+    const grouped = groupDocuments(conteudo.documentos_analisados);
+    secoes.push({ key: "docs", titulo: "2. DOCUMENTOS ANALISADOS", texto: grouped, nivel: "secao" });
+  }
+
+  if (conteudo.assunto) {
+    secoes.push({ key: "assunto", titulo: "3. ASSUNTO", texto: conteudo.assunto, nivel: "secao" });
+  }
+
+  if (conteudo.consideracoes_iniciais) {
+    secoes.push({ key: "consideracoes", titulo: "4. CONSIDERAÇÕES INICIAIS", texto: conteudo.consideracoes_iniciais, nivel: "secao" });
+  }
+
+  // Fundamentação técnica subsections
+  if (conteudo.analise_tecnica) {
+    const subsecaoMap: Record<string, string> = {
+      projetos_documentos: "5.1 PROJETOS E DEMAIS DOCUMENTOS TÉCNICOS",
+      valor_estimado: "5.2 VALOR GLOBAL ORÇADO",
+      determinacao_custos: "5.3 DETERMINAÇÃO DOS CUSTOS",
+      oneracao_desoneracao: "5.4 ONERAÇÃO / DESONERAÇÃO",
+      bdi: "5.5 BDI",
+      cronograma: "5.6 CRONOGRAMA FÍSICO-FINANCEIRO E MEMORIAIS",
+    };
+    for (const item of conteudo.analise_tecnica) {
+      const titulo = subsecaoMap[item.campo] || item.campo.toUpperCase();
+      secoes.push({ key: item.campo, titulo, texto: item.valor, nivel: "subsecao" });
+    }
+  }
+
+  if (conteudo.sintese || conteudo.conclusao) {
+    secoes.push({ key: "conclusao", titulo: "6. CONCLUSÃO – PARECER TÉCNICO", texto: conteudo.sintese || conteudo.conclusao, nivel: "secao" });
+  }
+
+  await generateParecerDocx({
+    numeroParecer,
+    orgao,
+    secretaria,
+    secoes,
+    assinatura: {
+      local: orgao,
+      data: conteudo.identificacao_parecer?.data || "",
+      nome: conteudo.responsavel_tecnico || "",
+      cargo: conteudo.cargo || "",
+      registro: conteudo.registro_profissional || "",
+    },
+  }, filename);
 }
+
+function groupDocuments(docs: { nome: string; categoria: string }[]): string {
+  const categoryLabels: Record<string, string> = {
+    MEMORIAL_OU_TR: "MD – Memorial Descritivo",
+    CADASTRO_TOPOGRAFIA: "CAT – Cadastro / Topografia",
+    DRENAGEM: "DRE – Drenagem",
+    URBANIZACAO_SINALIZACAO: "URB – Urbanização / Sinalização",
+    ORCAMENTO: "ORC – Orçamento",
+    CRONOGRAMA: "CRO – Cronograma",
+    RESPONSABILIDADE_TECNICA: "ART/RRT – Responsabilidade Técnica",
+    ADMINISTRATIVO: "ADM – Administrativo",
+    OUTROS: "Complementares",
+  };
+
+  const grouped: Record<string, string[]> = {};
+  for (const doc of docs) {
+    const cat = doc.categoria || "OUTROS";
+    if (!grouped[cat]) grouped[cat] = [];
+    // Extract just filename from path
+    const shortName = doc.nome.split("/").pop() || doc.nome;
+    grouped[cat].push(shortName);
+  }
+
+  const lines: string[] = [];
+  for (const [cat, files] of Object.entries(grouped)) {
+    const label = categoryLabels[cat] || cat;
+    lines.push(label + ":");
+    for (const f of files) {
+      lines.push(`• ${f}`);
+    }
+    lines.push("");
+  }
+  return lines.join("\n").trim();
+}
+
+export { groupDocuments };
 
 function headerParagraph(text: string): Paragraph {
   return new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { after: 40 },
     children: [
-      new TextRun({
-        text,
-        bold: true,
-        size: 24,
-        font: "Arial",
-      }),
+      new TextRun({ text, bold: true, size: 24, font: "Arial" }),
     ],
   });
 }
@@ -266,12 +255,7 @@ function sectionTitle(text: string): Paragraph {
   return new Paragraph({
     spacing: { before: 300, after: 120 },
     children: [
-      new TextRun({
-        text,
-        bold: true,
-        size: 24,
-        font: "Arial",
-      }),
+      new TextRun({ text, bold: true, size: 24, font: "Arial" }),
     ],
     border: {
       bottom: {
@@ -288,12 +272,7 @@ function subsectionTitle(text: string): Paragraph {
   return new Paragraph({
     spacing: { before: 200, after: 80 },
     children: [
-      new TextRun({
-        text,
-        bold: true,
-        size: 22,
-        font: "Arial",
-      }),
+      new TextRun({ text, bold: true, size: 22, font: "Arial" }),
     ],
   });
 }
@@ -302,11 +281,7 @@ function textParagraph(text: string): Paragraph {
   return new Paragraph({
     spacing: { after: 80 },
     children: [
-      new TextRun({
-        text,
-        size: 22,
-        font: "Arial",
-      }),
+      new TextRun({ text, size: 22, font: "Arial" }),
     ],
   });
 }
@@ -316,26 +291,7 @@ function bulletParagraph(text: string): Paragraph {
     spacing: { after: 40 },
     indent: { left: 360 },
     children: [
-      new TextRun({
-        text: `• ${text}`,
-        size: 22,
-        font: "Arial",
-      }),
-    ],
-  });
-}
-
-function metaParagraph(text: string): Paragraph {
-  return new Paragraph({
-    spacing: { after: 60 },
-    children: [
-      new TextRun({
-        text,
-        size: 18,
-        italics: true,
-        font: "Arial",
-        color: "666666",
-      }),
+      new TextRun({ text: `• ${text}`, size: 22, font: "Arial" }),
     ],
   });
 }

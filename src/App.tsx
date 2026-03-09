@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import NovoProcesso from "./pages/NovoProcesso";
 import RevisaoParecer from "./pages/RevisaoParecer";
 import ValidacaoParecer from "./pages/ValidacaoParecer";
+import PreviaParecer from "./pages/PreviaParecer";
 import ResultadoFinal from "./pages/ResultadoFinal";
 import NotFound from "./pages/NotFound";
 
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/novo" element={<NovoProcesso />} />
           <Route path="/revisao/:id" element={<RevisaoParecer />} />
           <Route path="/validacao/:id" element={<ValidacaoParecer />} />
+          <Route path="/previa/:id" element={<PreviaParecer />} />
           <Route path="/resultado/:id" element={<ResultadoFinal />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

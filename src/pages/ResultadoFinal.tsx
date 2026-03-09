@@ -6,20 +6,14 @@ import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Download, FileText, Loader2, Plus, Trash2 } from "lucide-react";
+import { Download, FileText, Loader2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { generateParecerDocx } from "@/lib/generate-docx";
+import { generateParecerDocx, generateParecerDocxLegacy, type DadosParecer } from "@/lib/generate-docx";
 
 const ResultadoFinal = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,35 +24,7 @@ const ResultadoFinal = () => {
     queryKey: ["processo", id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("processos")
-        .select("*")
-        .eq("id", id!)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: dadosExtraidos } = useQuery({
-    queryKey: ["dados_extraidos", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("dados_extraidos")
-        .select("*")
-        .eq("processo_id", id!)
-        .eq("oculto", false);
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: arquivos } = useQuery({
-    queryKey: ["arquivos", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("arquivos")
-        .select("*")
-        .eq("processo_id", id!);
+        .from("processos").select("*").eq("id", id!).single();
       if (error) throw error;
       return data;
     },
@@ -68,80 +34,32 @@ const ResultadoFinal = () => {
     queryKey: ["pareceres", id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("pareceres")
-        .select("*")
-        .eq("processo_id", id!)
+        .from("pareceres").select("*").eq("processo_id", id!)
         .order("versao", { ascending: false });
       if (error) throw error;
       return data;
     },
   });
 
-  const gerarParecer = useMutation({
-    mutationFn: async () => {
-      if (!processo || !dadosExtraidos || !arquivos) throw new Error("Dados não carregados");
-
-      const nextVersion = (pareceres?.[0]?.versao ?? 0) + 1;
-      const dadosMap: Record<string, string> = {};
-      dadosExtraidos.forEach((d) => {
-        dadosMap[d.campo] = d.valor;
-      });
-
-      const conteudo = {
-        identificacao_parecer: {
-          numero: `PT-${processo.numero_processo}-V${String(nextVersion).padStart(2, "0")}`,
-          data: format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR }),
-        },
-        identificacao_processo: {
-          nome: processo.nome_processo,
-          numero: processo.numero_processo,
-          orgao: processo.orgao,
-          secretaria: processo.secretaria,
-        },
-        objeto: dadosMap["objeto_contratacao"] || "Não foi identificada informação correspondente nos documentos analisados.",
-        documentos_analisados: arquivos.map((a) => ({
-          nome: a.nome_original,
-          categoria: a.categoria || "OUTROS",
-        })),
-        analise_tecnica: dadosExtraidos.map((d) => ({
-          campo: d.campo,
-          valor: d.valor,
-          origem: d.origem_documento,
-          confianca: d.confianca,
-        })),
-        inconsistencias: "Não foram identificadas inconsistências graves nos documentos analisados.",
-        complementacao: null,
-        sintese: `Parecer técnico elaborado com base na análise de ${arquivos.length} documento(s) integrante(s) do processo administrativo nº ${processo.numero_processo}.`,
-        responsavel_tecnico: dadosMap["responsavel_tecnico"] || "Não foi identificada informação correspondente nos documentos analisados.",
-      };
-
-      // Save to DB
-      const { error } = await supabase.from("pareceres").insert({
-        processo_id: id!,
-        versao: nextVersion,
-        conteudo_json: conteudo,
-      });
-      if (error) throw error;
-
-      // Update process status
-      await supabase.from("processos").update({ status: "concluido" as const }).eq("id", id!);
-
-      return { conteudo, version: nextVersion };
-    },
-    onSuccess: () => {
-      toast.success("Parecer técnico gerado com sucesso!");
-      queryClient.invalidateQueries({ queryKey: ["pareceres", id] });
-      queryClient.invalidateQueries({ queryKey: ["processo", id] });
-    },
-    onError: (err) => {
-      toast.error(`Erro ao gerar parecer: ${err.message}`);
-    },
-  });
-
   const handleDownload = async (parecer: any) => {
     try {
       const version = String(parecer.versao).padStart(2, "0");
-      await generateParecerDocx(parecer.conteudo_json, `PARECER_TECNICO_V${version}.docx`);
+      const conteudo = parecer.conteudo_json;
+
+      // New format (has secoes array)
+      if (conteudo?.secoes && Array.isArray(conteudo.secoes)) {
+        const dados: DadosParecer = {
+          numeroParecer: conteudo.identificacao_parecer?.numero || "",
+          orgao: conteudo.identificacao_processo?.orgao || "",
+          secretaria: conteudo.identificacao_processo?.secretaria || "",
+          secoes: conteudo.secoes,
+          assinatura: conteudo.assinatura || { local: "", data: "", nome: "", cargo: "", registro: "" },
+        };
+        await generateParecerDocx(dados, `PARECER_TECNICO_V${version}.docx`);
+      } else {
+        // Legacy format
+        await generateParecerDocxLegacy(conteudo, `PARECER_TECNICO_V${version}.docx`);
+      }
       toast.success("Download iniciado!");
     } catch (err: any) {
       toast.error(`Erro no download: ${err.message}`);
@@ -187,19 +105,6 @@ const ResultadoFinal = () => {
         </Card>
       )}
 
-      <div className="mb-6 flex gap-3">
-        <Button onClick={() => gerarParecer.mutate()} disabled={gerarParecer.isPending}>
-          {gerarParecer.isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : pareceres && pareceres.length > 0 ? (
-            <Plus className="mr-2 h-4 w-4" />
-          ) : (
-            <FileText className="mr-2 h-4 w-4" />
-          )}
-          {pareceres && pareceres.length > 0 ? "Gerar Nova Versão" : "Gerar Parecer Técnico"}
-        </Button>
-      </div>
-
       {loadingPareceres ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -219,9 +124,7 @@ const ResultadoFinal = () => {
                     </p>
                     <p className="text-sm text-muted-foreground">
                       Gerado em{" "}
-                      {format(new Date(parecer.data_execucao), "dd/MM/yyyy 'às' HH:mm", {
-                        locale: ptBR,
-                      })}
+                      {format(new Date(parecer.data_execucao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                     </p>
                   </div>
                 </div>
@@ -248,7 +151,7 @@ const ResultadoFinal = () => {
           <CardContent className="flex flex-col items-center py-12">
             <FileText className="mb-3 h-10 w-10 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
-              Nenhum parecer gerado ainda. Clique no botão acima para gerar.
+              Nenhum parecer gerado ainda.
             </p>
           </CardContent>
         </Card>
