@@ -19,7 +19,7 @@ const AppLayout = ({ children, title }: AppLayoutProps) => {
               <FileText className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <span className="text-lg font-bold text-foreground">ParecerTech</span>
+              <span className="text-lg font-bold text-foreground">E-Parecer</span>
               <span className="ml-1 text-xs text-muted-foreground">v1.0</span>
             </div>
           </Link>
@@ -27,22 +27,22 @@ const AppLayout = ({ children, title }: AppLayoutProps) => {
             <Link
               to="/"
               className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                location.pathname === "/"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}
-            >
+              location.pathname === "/" ?
+              "bg-primary text-primary-foreground" :
+              "text-muted-foreground hover:bg-secondary hover:text-foreground"}`
+              }>
+              
               <LayoutDashboard className="h-4 w-4" />
               Dashboard
             </Link>
             <Link
               to="/novo"
               className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                location.pathname === "/novo"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}
-            >
+              location.pathname === "/novo" ?
+              "bg-primary text-primary-foreground" :
+              "text-muted-foreground hover:bg-secondary hover:text-foreground"}`
+              }>
+              
               <Plus className="h-4 w-4" />
               Novo Parecer
             </Link>
@@ -50,13 +50,13 @@ const AppLayout = ({ children, title }: AppLayoutProps) => {
         </div>
       </header>
       <main className="container py-8">
-        {title && (
-          <h1 className="mb-6 text-2xl font-bold text-foreground">{title}</h1>
-        )}
+        {title &&
+        <h1 className="mb-6 text-2xl font-bold text-foreground">{title}</h1>
+        }
         {children}
       </main>
-    </div>
-  );
+    </div>);
+
 };
 
 export default AppLayout;
