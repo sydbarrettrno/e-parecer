@@ -180,7 +180,7 @@ const PreviaParecer = () => {
 
     // Conclusão — neutra quando identificação é insuficiente
     const categoriasEssenciais = ["ORCAMENTO", "MEMORIAL_OU_TR", "TERMO_DE_REFERENCIA"];
-    const categoriasPresentes = [...new Set(arquivos.map((a) => a.categoria))];
+    const categoriasPresentes = [...new Set(arquivos.map((a) => a.categoria).filter(Boolean))] as string[];
     const essenciaisPresentes = categoriasEssenciais.filter((c) => categoriasPresentes.includes(c));
     const identificacaoSuficiente = essenciaisPresentes.length >= 2;
 
