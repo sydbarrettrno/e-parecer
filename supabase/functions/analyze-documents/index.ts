@@ -14,70 +14,59 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const normalize = (text: string) =>
   text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-// ── HIGH-PRIORITY filename rules (checked BEFORE folder rules) ──
-const HIGH_PRIORITY_FILENAME_RULES: [string, string][] = [
-  ["cronograma", "CRONOGRAMA"],
-  ["art", "RESPONSABILIDADE_TECNICA"],
-  ["rrt", "RESPONSABILIDADE_TECNICA"],
-];
-
-// ── Folder-path-based rules ──
-const FOLDER_CATEGORY_MAP: Record<string, string> = {
-  "/md/": "MEMORIAL_OU_TR",
-  "/dre/": "DRENAGEM",
-  "/cat/": "CADASTRO_TOPOGRAFIA",
-  "/urb_sin/": "URBANIZACAO_SINALIZACAO",
-  "/urb/": "URBANIZACAO_SINALIZACAO",
-  "/sin/": "URBANIZACAO_SINALIZACAO",
-  "/orc/": "ORCAMENTO",
-  "/cro/": "CRONOGRAMA",
-  "/adm/": "ADMINISTRATIVO",
-};
-
-// ── Standard filename keyword rules ──
-const FILENAME_RULES: [string, string][] = [
-  ["orcamento sintetico", "ORCAMENTO"],
-  ["orc sintetico", "ORCAMENTO"],
-  ["composicoes", "ORCAMENTO"],
-  ["composicao", "ORCAMENTO"],
-  ["curva abc", "ORCAMENTO"],
-  ["memoria de calculo", "ORCAMENTO"],
-  ["mem calculo", "ORCAMENTO"],
-  ["cotacoes", "ORCAMENTO"],
-  ["cotacao", "ORCAMENTO"],
-  ["dmt", "ORCAMENTO"],
-  ["bdi", "ORCAMENTO"],
-  ["orcamento", "ORCAMENTO"],
-  ["planilha", "ORCAMENTO"],
-  ["sinapi", "ORCAMENTO"],
-  ["memorial", "MEMORIAL_OU_TR"],
-  ["termo de referencia", "MEMORIAL_OU_TR"],
-  ["projeto basico", "MEMORIAL_OU_TR"],
-  ["projeto executivo", "MEMORIAL_OU_TR"],
-  ["drenagem", "DRENAGEM"],
-  ["topografia", "CADASTRO_TOPOGRAFIA"],
-  ["cadastro", "CADASTRO_TOPOGRAFIA"],
-  ["planialtimetrico", "CADASTRO_TOPOGRAFIA"],
-  ["levantamento", "CADASTRO_TOPOGRAFIA"],
-  ["urbanizacao", "URBANIZACAO_SINALIZACAO"],
-  ["sinalizacao", "URBANIZACAO_SINALIZACAO"],
-  ["pavimentacao", "URBANIZACAO_SINALIZACAO"],
-];
-
+// ── Classification engine ──
 function classifyDocument(filename: string): string {
   const normalizedPath = normalize(filename);
   const normalizedFilename = normalize(filename.split("/").pop() || filename);
 
-  for (const [pattern, category] of HIGH_PRIORITY_FILENAME_RULES) {
-    if (normalizedFilename.includes(pattern)) return category;
-  }
+  // 1) Exclusion rules first — RRC is NOT ART/RRT
+  if (normalizedFilename.includes("rrc")) return "OUTROS";
 
-  for (const [folder, category] of Object.entries(FOLDER_CATEGORY_MAP)) {
+  // 2) High-priority filename keyword rules
+  // Administrative
+  if (normalizedFilename.includes("declinando") || normalizedFilename.includes("sem devolucao")) return "ADMINISTRATIVO";
+
+  // Template/Model
+  if (normalizedFilename.includes("template") || normalizedFilename.includes("modelo")) return "MODELO";
+
+  // Cronograma (before ORC folder can catch it)
+  if (normalizedFilename.includes("cronograma")) return "CRONOGRAMA";
+
+  // Responsabilidade técnica — only exact ART/RRT patterns
+  // Use word-boundary-like matching to avoid false positives (e.g. "carta", "art.")
+  if (/\bart\b/.test(normalizedFilename) || /\brrt\b/.test(normalizedFilename)) return "RESPONSABILIDADE_TECNICA";
+
+  // Cotações / Propostas
+  if (normalizedFilename.includes("proposta") || normalizedFilename.includes("cotacao") || normalizedFilename.includes("cotacoes") || normalizedFilename.includes("orca recebido")) return "COTACAO_OU_PROPOSTA";
+
+  // Termo de referência — check filename for "tr" as word boundary or full phrase
+  if (/\btr\b/.test(normalizedFilename) || normalizedFilename.includes("termo de referencia")) return "TERMO_DE_REFERENCIA";
+
+  // Orçamento keywords
+  if (normalizedFilename.includes("orcamento") || normalizedFilename.includes("orca") || normalizedFilename.includes("planilha") || normalizedFilename.includes("composicoes") || normalizedFilename.includes("composicao") || normalizedFilename.includes("curva abc") || normalizedFilename.includes("memoria de calculo") || normalizedFilename.includes("mem calculo") || normalizedFilename.includes("dmt") || normalizedFilename.includes("bdi") || normalizedFilename.includes("sinapi") || normalizedFilename.includes("sintetico")) return "ORCAMENTO";
+
+  // Memorial descritivo
+  if (normalizedFilename.includes("memorial") || normalizedFilename.includes("projeto basico") || normalizedFilename.includes("projeto executivo")) return "MEMORIAL_OU_TR";
+
+  // Technical disciplines
+  if (normalizedFilename.includes("drenagem")) return "DRENAGEM";
+  if (normalizedFilename.includes("topografia") || normalizedFilename.includes("cadastro") || normalizedFilename.includes("planialtimetrico") || normalizedFilename.includes("levantamento")) return "CADASTRO_TOPOGRAFIA";
+  if (normalizedFilename.includes("urbanizacao") || normalizedFilename.includes("sinalizacao") || normalizedFilename.includes("pavimentacao")) return "URBANIZACAO_SINALIZACAO";
+
+  // 3) Folder-path-based rules (fallback)
+  const FOLDER_MAP: [string, string][] = [
+    ["/md/", "MEMORIAL_OU_TR"],
+    ["/dre/", "DRENAGEM"],
+    ["/cat/", "CADASTRO_TOPOGRAFIA"],
+    ["/urb_sin/", "URBANIZACAO_SINALIZACAO"],
+    ["/urb/", "URBANIZACAO_SINALIZACAO"],
+    ["/sin/", "URBANIZACAO_SINALIZACAO"],
+    ["/orc/", "ORCAMENTO"],
+    ["/cro/", "CRONOGRAMA"],
+    ["/adm/", "ADMINISTRATIVO"],
+  ];
+  for (const [folder, category] of FOLDER_MAP) {
     if (normalizedPath.includes(folder)) return category;
-  }
-
-  for (const [pattern, category] of FILENAME_RULES) {
-    if (normalizedFilename.includes(pattern)) return category;
   }
 
   return "OUTROS";
@@ -116,33 +105,41 @@ Deno.serve(async (req) => {
       classifiedFiles.push({ nome: arq.nome_original, categoria });
     }
 
-    // Build discipline list for object description
+    const presentCategories = [...new Set(classifiedFiles.map((f) => f.categoria))];
+
+    // ── Object extraction: prioritize TR > ORC > Cronograma > process name ──
     const disciplineMap: Record<string, string> = {
       DRENAGEM: "drenagem",
       URBANIZACAO_SINALIZACAO: "urbanização e sinalização",
       CADASTRO_TOPOGRAFIA: "cadastro e topografia",
       MEMORIAL_OU_TR: "memorial descritivo",
-      ORCAMENTO: "orçamento",
-      CRONOGRAMA: "cronograma",
-      RESPONSABILIDADE_TECNICA: "responsabilidade técnica",
-      ADMINISTRATIVO: "documentos administrativos",
+      TERMO_DE_REFERENCIA: "termo de referência",
     };
-    const presentCategories = [...new Set(classifiedFiles.map((f) => f.categoria))];
 
-    // Simple AI prompt: only object description, no complex analysis
     const disciplinesForObject = presentCategories
-      .filter((c) => !["ORCAMENTO", "ADMINISTRATIVO", "OUTROS", "RESPONSABILIDADE_TECNICA", "CRONOGRAMA"].includes(c))
+      .filter((c) => !["ORCAMENTO", "ADMINISTRATIVO", "OUTROS", "RESPONSABILIDADE_TECNICA", "CRONOGRAMA", "COTACAO_OU_PROPOSTA", "MODELO"].includes(c))
       .map((c) => disciplineMap[c])
       .filter(Boolean);
+
+    // Determine strongest source for object
+    const hasTR = presentCategories.includes("TERMO_DE_REFERENCIA");
+    const hasORC = presentCategories.includes("ORCAMENTO");
+    const hasCrono = presentCategories.includes("CRONOGRAMA");
+
+    let fontePrincipal = "nome do processo";
+    if (hasTR) fontePrincipal = "termo de referência identificado no conjunto documental";
+    else if (hasORC) fontePrincipal = "orçamento identificado no conjunto documental";
+    else if (hasCrono) fontePrincipal = "cronograma identificado no conjunto documental";
 
     const prompt = `Você é um analista técnico. Com base nas informações abaixo, gere APENAS o objeto da contratação.
 
 NOME DO PROCESSO: ${processo.nome_processo}
+FONTE PRINCIPAL PARA O OBJETO: ${fontePrincipal}
 DISCIPLINAS IDENTIFICADAS NOS DOCUMENTOS: ${disciplinesForObject.join(", ") || "não identificadas"}
 
 REGRAS:
 - O objeto deve descrever a OBRA ou INTERVENÇÃO, não os documentos
-- NÃO mencione "execução de serviços de orçamento" ou "memorial descritivo"
+- NÃO mencione "execução de serviços de orçamento", "memorial descritivo" ou "termo de referência"
 - Identifique o local/logradouro a partir do nome do processo
 - Formato: "Execução de serviços de [obras/disciplinas técnicas] da/do [local]."
 - Exemplo: "Execução de serviços de pavimentação, drenagem, urbanização e sinalização da Rua Angelina das Dores."
@@ -150,7 +147,6 @@ REGRAS:
 Responda APENAS com o texto do objeto, sem aspas, sem explicações.`;
 
     let objetoTexto = "";
-
     try {
       const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -163,7 +159,6 @@ Responda APENAS com o texto do objeto, sem aspas, sem explicações.`;
           messages: [{ role: "user", content: prompt }],
         }),
       });
-
       if (aiResponse.ok) {
         const aiResult = await aiResponse.json();
         objetoTexto = aiResult.choices?.[0]?.message?.content?.trim() || "";
@@ -180,16 +175,25 @@ Responda APENAS com o texto do objeto, sem aspas, sem explicações.`;
       objetoTexto = `Execução de serviços de ${obras} – ${processo.nome_processo}.`;
     }
 
-    // Clear old extracted data & insert basic fields
+    // ── Build extracted data ──
     await supabase.from("dados_extraidos").delete().eq("processo_id", processo_id);
 
+    // Determine if ART/RRT was truly identified
+    const hasArtRrt = presentCategories.includes("RESPONSABILIDADE_TECNICA");
+
     const basicData = [
-      { campo: "objeto_contratacao", valor: objetoTexto, origem_documento: "Inferido do nome do processo e documentos classificados", confianca: "media" },
+      { campo: "objeto_contratacao", valor: objetoTexto, origem_documento: `Inferido a partir de: ${fontePrincipal}`, confianca: hasTR ? "alta" : "media" },
       { campo: "numero_processo", valor: processo.numero_processo, origem_documento: "Cadastro do processo", confianca: "alta" },
       { campo: "orgao_responsavel", valor: processo.orgao, origem_documento: "Cadastro do processo", confianca: "alta" },
       { campo: "secretaria_responsavel", valor: processo.secretaria, origem_documento: "Cadastro do processo", confianca: "alta" },
       { campo: "valor_estimado", valor: "Não foi identificada informação correspondente nos documentos analisados.", origem_documento: null, confianca: "baixa" },
     ];
+
+    // Only mention responsabilidade_tecnica if truly found
+    if (hasArtRrt) {
+      const artFiles = classifiedFiles.filter((f) => f.categoria === "RESPONSABILIDADE_TECNICA").map((f) => f.nome.split("/").pop()).join(", ");
+      basicData.push({ campo: "responsavel_tecnico", valor: `Identificado(s): ${artFiles}`, origem_documento: "Documento(s) de ART/RRT classificado(s)", confianca: "media" });
+    }
 
     for (const item of basicData) {
       await supabase.from("dados_extraidos").insert({

@@ -207,14 +207,17 @@ export async function generateParecerDocxLegacy(conteudo: any, filename: string)
 
 function groupDocuments(docs: { nome: string; categoria: string }[]): string {
   const categoryLabels: Record<string, string> = {
+    TERMO_DE_REFERENCIA: "TR – Termo de Referência",
     MEMORIAL_OU_TR: "MD – Memorial Descritivo",
     CADASTRO_TOPOGRAFIA: "CAT – Cadastro / Topografia",
     DRENAGEM: "DRE – Drenagem",
     URBANIZACAO_SINALIZACAO: "URB – Urbanização / Sinalização",
     ORCAMENTO: "ORC – Orçamento",
+    COTACAO_OU_PROPOSTA: "COT – Cotações / Propostas",
     CRONOGRAMA: "CRO – Cronograma",
     RESPONSABILIDADE_TECNICA: "ART/RRT – Responsabilidade Técnica",
     ADMINISTRATIVO: "ADM – Administrativo",
+    MODELO: "MOD – Modelo / Template",
     OUTROS: "Complementares",
   };
 
