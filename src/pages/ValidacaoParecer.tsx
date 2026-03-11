@@ -116,17 +116,25 @@ const ValidacaoParecer = () => {
     const byCategory = (cat: string) => arquivos.filter((a) => a.categoria === cat);
     const listFileNames = (cat: string) => byCategory(cat).map((a) => a.nome_original.split("/").pop() || a.nome_original);
 
-    // 5.1 Projetos
+    // 5.1 Projetos — include TR, cronograma, orçamento as recognized technical docs
+    const trFiles = listFileNames("TERMO_DE_REFERENCIA");
     const memoriais = listFileNames("MEMORIAL_OU_TR");
     const drenagem = listFileNames("DRENAGEM");
     const cadastro = listFileNames("CADASTRO_TOPOGRAFIA");
     const urbSin = listFileNames("URBANIZACAO_SINALIZACAO");
     const artRrt = listFileNames("RESPONSABILIDADE_TECNICA");
+    const cronoFilesProjetos = listFileNames("CRONOGRAMA");
+    const orcFilesProjetos = listFileNames("ORCAMENTO");
+    const cotacoesFiles = listFileNames("COTACAO_OU_PROPOSTA");
     const projetosLines: string[] = [];
-    if (memoriais.length > 0) projetosLines.push(`Memorial descritivo / Termo de referência: ${memoriais.join(", ")}.`);
+    if (trFiles.length > 0) projetosLines.push(`Termo de Referência: ${trFiles.join(", ")}.`);
+    if (memoriais.length > 0) projetosLines.push(`Memorial descritivo: ${memoriais.join(", ")}.`);
     if (drenagem.length > 0) projetosLines.push(`Projeto de drenagem: ${drenagem.join(", ")}.`);
     if (cadastro.length > 0) projetosLines.push(`Cadastro / Topografia: ${cadastro.join(", ")}.`);
     if (urbSin.length > 0) projetosLines.push(`Urbanização / Sinalização: ${urbSin.join(", ")}.`);
+    if (orcFilesProjetos.length > 0) projetosLines.push(`Planilha orçamentária: ${orcFilesProjetos.join(", ")}.`);
+    if (cronoFilesProjetos.length > 0) projetosLines.push(`Cronograma: ${cronoFilesProjetos.join(", ")}.`);
+    if (cotacoesFiles.length > 0) projetosLines.push(`Cotações / Propostas: ${cotacoesFiles.join(", ")}.`);
     if (artRrt.length > 0) projetosLines.push(`ART/RRT: ${artRrt.join(", ")}.`);
     const projetosTexto = projetosLines.length > 0
       ? `Foram identificados os seguintes documentos técnicos:\n${projetosLines.join("\n")}`
