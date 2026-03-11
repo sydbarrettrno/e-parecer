@@ -140,9 +140,12 @@ DISCIPLINAS IDENTIFICADAS NOS DOCUMENTOS: ${disciplinesForObject.join(", ") || "
 REGRAS:
 - O objeto deve descrever a OBRA ou INTERVENÇÃO, não os documentos
 - NÃO mencione "execução de serviços de orçamento", "memorial descritivo" ou "termo de referência"
-- Identifique o local/logradouro a partir do nome do processo
-- Formato: "Execução de serviços de [obras/disciplinas técnicas] da/do [local]."
-- Exemplo: "Execução de serviços de pavimentação, drenagem, urbanização e sinalização da Rua Angelina das Dores."
+- Identifique o local/logradouro a partir do nome do processo, MAS apenas se for claro e não redundante
+- EVITE repetições: NÃO repita a mesma palavra ou conceito (ex: "praia da Praia" é ERRADO)
+- Se o nome do processo já contém o tipo de serviço, não repita. Ex: "Alimentação Artificial de Praia - Praia X" → "Execução de serviços de alimentação artificial de praia na Praia X."
+- Se não houver local confiável, use apenas: "Execução de serviços de [descrição da intervenção]."
+- Formato: "Execução de serviços de [obras/disciplinas técnicas] no/na/do/da [local, se identificado]."
+- Seja conciso e técnico. Máximo 2 linhas.
 
 Responda APENAS com o texto do objeto, sem aspas, sem explicações.`;
 

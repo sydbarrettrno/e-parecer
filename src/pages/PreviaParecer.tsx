@@ -113,17 +113,25 @@ const PreviaParecer = () => {
     const byCategory = (cat: string) => arquivos.filter((a) => a.categoria === cat);
     const listFileNames = (cat: string) => byCategory(cat).map((a) => a.nome_original.split("/").pop() || a.nome_original);
 
-    // 5.1 Projetos
+    // 5.1 Projetos — include TR, cronograma, orçamento as recognized technical docs
+    const trFiles = listFileNames("TERMO_DE_REFERENCIA");
     const memoriais = listFileNames("MEMORIAL_OU_TR");
     const drenagem = listFileNames("DRENAGEM");
     const cadastro = listFileNames("CADASTRO_TOPOGRAFIA");
     const urbSin = listFileNames("URBANIZACAO_SINALIZACAO");
     const artRrt = listFileNames("RESPONSABILIDADE_TECNICA");
+    const cronoFilesProjetos = listFileNames("CRONOGRAMA");
+    const orcFilesProjetos = listFileNames("ORCAMENTO");
+    const cotacoesFiles = listFileNames("COTACAO_OU_PROPOSTA");
     const projetosLines: string[] = [];
-    if (memoriais.length > 0) projetosLines.push(`Memorial descritivo / Termo de referência: ${memoriais.join(", ")}.`);
+    if (trFiles.length > 0) projetosLines.push(`Termo de Referência: ${trFiles.join(", ")}.`);
+    if (memoriais.length > 0) projetosLines.push(`Memorial descritivo: ${memoriais.join(", ")}.`);
     if (drenagem.length > 0) projetosLines.push(`Projeto de drenagem: ${drenagem.join(", ")}.`);
     if (cadastro.length > 0) projetosLines.push(`Cadastro / Topografia: ${cadastro.join(", ")}.`);
     if (urbSin.length > 0) projetosLines.push(`Urbanização / Sinalização: ${urbSin.join(", ")}.`);
+    if (orcFilesProjetos.length > 0) projetosLines.push(`Planilha orçamentária: ${orcFilesProjetos.join(", ")}.`);
+    if (cronoFilesProjetos.length > 0) projetosLines.push(`Cronograma: ${cronoFilesProjetos.join(", ")}.`);
+    if (cotacoesFiles.length > 0) projetosLines.push(`Cotações / Propostas: ${cotacoesFiles.join(", ")}.`);
     if (artRrt.length > 0) projetosLines.push(`ART/RRT: ${artRrt.join(", ")}.`);
     const projetosTexto = projetosLines.length > 0
       ? `Foram identificados os seguintes documentos técnicos:\n${projetosLines.join("\n")}`
@@ -147,9 +155,16 @@ const PreviaParecer = () => {
     if (cotacoes.length > 0) custosLines.push(`Cotações: ${cotacoes.join(", ")}.`);
     if (curvaAbc.length > 0) custosLines.push(`Curva ABC: ${curvaAbc.join(", ")}.`);
     if (dmtFiles.length > 0) custosLines.push(`DMT: ${dmtFiles.join(", ")}.`);
-    const custosTexto = custosLines.length > 0
-      ? `Foram identificados os seguintes documentos de composição de custos:\n${custosLines.join("\n")}`
-      : "Não foram identificados documentos de composição de custos.";
+    const cotacoesOrc = listFileNames("COTACAO_OU_PROPOSTA");
+    if (cotacoesOrc.length > 0) custosLines.push(`Cotações / Propostas: ${cotacoesOrc.join(", ")}.`);
+    let custosTexto: string;
+    if (custosLines.length > 0) {
+      custosTexto = `Foram identificados os seguintes documentos relacionados à composição de custos:\n${custosLines.join("\n")}`;
+    } else if (orcFilesProjetos.length > 0 || cotacoesFiles.length > 0) {
+      custosTexto = "Foram identificados documentos orçamentários no conjunto documental, porém não foi possível detalhar a composição de custos com base apenas na classificação dos arquivos. Recomenda-se verificação manual.";
+    } else {
+      custosTexto = "Não foram identificados documentos específicos de composição de custos no conjunto documental apresentado.";
+    }
 
     // 5.4 Oneração
     const allNames = arquivos.map((a) => normalize(a.nome_original));
@@ -185,8 +200,8 @@ const PreviaParecer = () => {
     const identificacaoSuficiente = essenciaisPresentes.length >= 2;
 
     const conclusaoTexto = identificacaoSuficiente
-      ? `Diante do exposto, com base na análise da documentação técnica apresentada para instruir o processo administrativo nº ${processo.numero_processo}, este parecer técnico conclui que o conjunto documental foi avaliado quanto à sua completude e consistência, à luz da Lei nº 14.133/2021.`
-      : `Diante do exposto, com base na análise da documentação técnica apresentada para instruir o processo administrativo nº ${processo.numero_processo}, este parecer técnico registra que a identificação documental realizada foi parcial, não sendo possível atestar a completude do conjunto documental. Recomenda-se complementação e revisão manual antes de subsidiar o procedimento licitatório.`;
+      ? `Diante do exposto, com base na análise da documentação técnica apresentada para instruir o processo administrativo nº ${processo.numero_processo}, este parecer técnico registra que o conjunto documental foi avaliado quanto à sua completude e consistência, à luz da Lei nº 14.133/2021. As considerações e observações técnicas constam nas seções precedentes deste documento.`
+      : `Diante do exposto, com base na análise da documentação técnica apresentada para instruir o processo administrativo nº ${processo.numero_processo}, este parecer técnico registra que a identificação documental realizada foi parcial, limitando-se aos documentos efetivamente apresentados. As considerações e observações técnicas constam nas seções precedentes deste documento. Recomenda-se complementação e revisão manual.`;
 
     const built: SecaoDocumento[] = [
       { key: "objeto", titulo: "1. IDENTIFICAÇÃO E OBJETO", texto: objetoTexto, nivel: "secao" },
